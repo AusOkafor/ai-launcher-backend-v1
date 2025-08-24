@@ -8,7 +8,6 @@
     "scripts": {
         "dev": "node --watch src/server.js",
         "start": "node src/server.js",
-        "vercel-build": "echo 'API build complete'",
         "vercel-build": "echo 'Build complete'",
         "vercel-build": "echo 'No build step needed for JavaScript'",
         "build": "echo 'No build step needed for JavaScript'",
