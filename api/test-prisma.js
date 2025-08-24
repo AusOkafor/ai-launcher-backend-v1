@@ -1,9 +1,12 @@
 import { prisma } from './lib/prisma.js'
 
+// Force Vercel redeploy to pick up environment variables
 export default async function handler(req, res) {
     try {
         console.log('Testing Prisma connection...')
-        
+        console.log('DATABASE_URL exists:', !!process.env.DATABASE_URL)
+        console.log('NODE_ENV:', process.env.NODE_ENV)
+
         // Check if DATABASE_URL is available
         if (!process.env.DATABASE_URL) {
             return res.status(200).json({
@@ -16,7 +19,7 @@ export default async function handler(req, res) {
 
         // Try a simple Prisma query
         const storeCount = await prisma.store.count()
-        
+
         return res.status(200).json({
             success: true,
             message: 'Prisma connection successful',
