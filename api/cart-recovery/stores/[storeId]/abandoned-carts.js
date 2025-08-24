@@ -5,9 +5,10 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' })
     }
 
-    try {
-        const { storeId } = req.query
+    // Get storeId from query parameters
+    const { storeId } = req.query
 
+    try {
         console.log(`Fetching abandoned carts for store: ${storeId}`)
 
         // Check if DATABASE_URL is available
@@ -51,7 +52,7 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('Error fetching abandoned carts:', error)
-        
+
         // If Prisma fails, return mock data
         const mockCarts = [{
             id: 'cart-1',
