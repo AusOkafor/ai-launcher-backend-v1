@@ -8,9 +8,8 @@
     "scripts": {
         "dev": "node --watch src/server.js",
         "start": "node src/server.js",
-        "vercel-build": "echo 'Build complete'",
-        "vercel-build": "echo 'No build step needed for JavaScript'",
-        "build": "echo 'No build step needed for JavaScript'",
+        "vercel-build": "npx prisma generate && echo 'Build complete with Prisma'",
+        "build": "npx prisma generate && echo 'Build complete with Prisma'",
         "test": "echo 'Tests to be implemented'",
         "lint": "eslint src --ext .js",
         "lint:fix": "eslint src --ext .js --fix",
