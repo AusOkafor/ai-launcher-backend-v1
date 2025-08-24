@@ -19,7 +19,8 @@ export default async function handler(req, res) {
                 storeId: storeId,
                 status: 'ABANDONED',
                 customer: { name: 'John Doe', email: 'john@example.com' },
-                items: [{ name: 'Test Product', quantity: 1 }]
+                items: [{ name: 'Test Product', quantity: 1 }],
+                subtotal: 99.99
             }]
 
             return res.status(200).json({
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
             },
             include: {
                 customer: true,
-                items: true
+                store: true
             }
         })
 
@@ -59,7 +60,8 @@ export default async function handler(req, res) {
             storeId: storeId,
             status: 'ABANDONED',
             customer: { name: 'John Doe', email: 'john@example.com' },
-            items: [{ name: 'Test Product', quantity: 1 }]
+            items: [{ name: 'Test Product', quantity: 1 }],
+            subtotal: 99.99
         }]
 
         res.status(200).json({
