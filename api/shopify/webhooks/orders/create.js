@@ -34,9 +34,53 @@ export default async function handler(req, res) {
 
         console.log(`Found store: ${store.domain}`)
 
-        // For now, just log the order
-        console.log(`Order received for store: ${store.domain}. Order ID: ${shopifyOrder.id}`)
-        res.status(200).send('OK - Order logged')
+        // Save the order to database
+        console.log(`Saving order to database: ${shopifyOrder.id}`)
+        
+        // Create or update customer
+        const customer = await prisma.customer.upsert({
+            where: { 
+                externalId: shopifyOrder.customer.id.toString(),
+                storeId: store.id
+            },
+            update: {
+                email: shopifyOrder.customer.email,
+                firstName: shopifyOrder.customer.first_name,
+                lastName: shopifyOrder.customer.last_name,
+                phone: shopifyOrder.customer.phone,
+                metadata: shopifyOrder.customer
+            },
+            create: {
+                externalId: shopifyOrder.customer.id.toString(),
+                storeId: store.id,
+                email: shopifyOrder.customer.email,
+                firstName: shopifyOrder.customer.first_name,
+                lastName: shopifyOrder.customer.last_name,
+                phone: shopifyOrder.customer.phone,
+                metadata: shopifyOrder.customer
+            }
+        })
+
+        // Create the order
+        const order = await prisma.order.create({
+            data: {
+                externalId: shopifyOrder.id.toString(),
+                storeId: store.id,
+                customerId: customer.id,
+                orderNumber: shopifyOrder.order_number.toString(),
+                status: shopifyOrder.financial_status === 'paid' ? 'PAID' : 'PENDING',
+                subtotal: parseFloat(shopifyOrder.subtotal_price),
+                total: parseFloat(shopifyOrder.total_price),
+                currency: shopifyOrder.currency,
+                items: shopifyOrder.line_items,
+                metadata: shopifyOrder,
+                createdAt: new Date(shopifyOrder.created_at),
+                updatedAt: new Date(shopifyOrder.updated_at)
+            }
+        })
+
+        console.log(`Order saved successfully: ${order.id}`)
+        res.status(200).send('OK - Order saved')
     } catch (error) {
         console.error('Error handling order creation webhook:', error)
         console.error('Error stack:', error.stack)
