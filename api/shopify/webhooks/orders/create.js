@@ -37,50 +37,59 @@ export default async function handler(req, res) {
         // Save the order to database
         console.log(`Saving order to database: ${shopifyOrder.id}`)
         
-        // Create or update customer using email as unique identifier
+        // Create or update customer using upsert (now that we have unique constraint)
         let customer = null
         if (shopifyOrder.customer && shopifyOrder.customer.email) {
-            // First try to find existing customer
-            customer = await prisma.customer.findFirst({
+            customer = await prisma.customer.upsert({
                 where: { 
+                    storeId_email: {
+                        storeId: store.id,
+                        email: shopifyOrder.customer.email
+                    }
+                },
+                update: {
+                    firstName: shopifyOrder.customer.first_name,
+                    lastName: shopifyOrder.customer.last_name,
+                    phone: shopifyOrder.customer.phone,
+                    traits: shopifyOrder.customer
+                },
+                create: {
+                    storeId: store.id,
                     email: shopifyOrder.customer.email,
-                    storeId: store.id
+                    firstName: shopifyOrder.customer.first_name,
+                    lastName: shopifyOrder.customer.last_name,
+                    phone: shopifyOrder.customer.phone,
+                    traits: shopifyOrder.customer
                 }
             })
-            
-            if (customer) {
-                // Update existing customer
-                customer = await prisma.customer.update({
-                    where: { id: customer.id },
-                    data: {
-                        firstName: shopifyOrder.customer.first_name,
-                        lastName: shopifyOrder.customer.last_name,
-                        phone: shopifyOrder.customer.phone,
-                        traits: shopifyOrder.customer
-                    }
-                })
-                console.log(`Customer updated: ${customer.id}`)
-            } else {
-                // Create new customer
-                customer = await prisma.customer.create({
-                    data: {
-                        storeId: store.id,
-                        email: shopifyOrder.customer.email,
-                        firstName: shopifyOrder.customer.first_name,
-                        lastName: shopifyOrder.customer.last_name,
-                        phone: shopifyOrder.customer.phone,
-                        traits: shopifyOrder.customer
-                    }
-                })
-                console.log(`Customer created: ${customer.id}`)
-            }
+            console.log(`Customer upserted: ${customer.id}`)
         }
 
-        // Create the order
-        const order = await prisma.order.create({
-            data: {
+        // Create or update the order using upsert
+        const order = await prisma.order.upsert({
+            where: {
+                storeId_externalId: {
+                    storeId: store.id,
+                    externalId: shopifyOrder.id.toString()
+                }
+            },
+            update: {
+                total: parseFloat(shopifyOrder.total_price),
+                status: shopifyOrder.financial_status === 'paid' ? 'PAID' : 'PENDING',
+                items: shopifyOrder.line_items,
+                metadata: {
+                    shopifyOrderId: shopifyOrder.id,
+                    orderNumber: shopifyOrder.order_number,
+                    subtotal: shopifyOrder.subtotal_price,
+                    currency: shopifyOrder.currency,
+                    fullOrder: shopifyOrder
+                }
+            },
+            create: {
                 storeId: store.id,
                 customerId: customer ? customer.id : null,
+                externalId: shopifyOrder.id.toString(),
+                orderNumber: shopifyOrder.order_number.toString(),
                 total: parseFloat(shopifyOrder.total_price),
                 status: shopifyOrder.financial_status === 'paid' ? 'PAID' : 'PENDING',
                 items: shopifyOrder.line_items,

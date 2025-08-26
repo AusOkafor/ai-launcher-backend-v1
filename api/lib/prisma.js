@@ -23,9 +23,4 @@ if (process.env.NODE_ENV === 'production') {
     prisma = global.prisma
 }
 
-// Handle connection issues gracefully
-prisma.$connect().catch((error) => {
-    console.error('Prisma connection error:', error)
-})
-
 export { prisma }

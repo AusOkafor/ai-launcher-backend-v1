@@ -177,6 +177,7 @@ model Customer {
   orders    Order[]
   carts     Cart[]
 
+  @@unique([storeId, email])
   @@map("customers")
 }
 
@@ -184,6 +185,8 @@ model Order {
   id         String   @id @default(cuid())
   storeId    String
   customerId String?
+  externalId String?  // Shopify order ID
+  orderNumber String? // Shopify order number
   items      Json     // Order items as JSON
   total      Decimal  @db.Decimal(10, 2)
   status     OrderStatus @default(PENDING)
@@ -196,6 +199,7 @@ model Order {
   customer   Customer? @relation(fields: [customerId], references: [id])
   returnRisk ReturnRisk?
 
+  @@unique([storeId, externalId])
   @@map("orders")
 }
 
