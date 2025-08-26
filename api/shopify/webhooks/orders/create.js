@@ -18,26 +18,21 @@ export default async function handler(req, res) {
             return res.status(400).send('Invalid webhook payload')
         }
 
-        // Find store by domain (try multiple possible field names)
-        const shopDomain = shopifyOrder.shop_domain || shopifyOrder.domain
-        console.log(`Shop domain from webhook: ${shopDomain || 'NOT_FOUND'}`)
-
+        // Find store - since webhook doesn't include shop domain, use the first Shopify store
         const store = await prisma.store.findFirst({
             where: {
-                domain: shopDomain,
                 platform: 'SHOPIFY'
             }
         })
 
         if (!store) {
-            console.error(`Store not found for domain: ${shopDomain}`)
-            console.error(`Available domains: austus-themes.myshopify.com, your-store.myshopify.com`)
-
-            // For now, just log the order and return success
-            console.log(`Order received but store not found. Order ID: ${shopifyOrder.id}`)
+            console.error(`No Shopify store found in database`)
+            console.log(`Order received but no store found. Order ID: ${shopifyOrder.id}`)
             res.status(200).send('OK - Order logged')
             return
         }
+
+        console.log(`Found store: ${store.domain}`)
 
         // For now, just log the order
         console.log(`Order received for store: ${store.domain}. Order ID: ${shopifyOrder.id}`)
