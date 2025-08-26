@@ -37,45 +37,60 @@ export default async function handler(req, res) {
         // Save the order to database
         console.log(`Saving order to database: ${shopifyOrder.id}`)
         
-        // Create or update customer
-        const customer = await prisma.customer.upsert({
-            where: { 
-                externalId: shopifyOrder.customer.id.toString(),
-                storeId: store.id
-            },
-            update: {
-                email: shopifyOrder.customer.email,
-                firstName: shopifyOrder.customer.first_name,
-                lastName: shopifyOrder.customer.last_name,
-                phone: shopifyOrder.customer.phone,
-                metadata: shopifyOrder.customer
-            },
-            create: {
-                externalId: shopifyOrder.customer.id.toString(),
-                storeId: store.id,
-                email: shopifyOrder.customer.email,
-                firstName: shopifyOrder.customer.first_name,
-                lastName: shopifyOrder.customer.last_name,
-                phone: shopifyOrder.customer.phone,
-                metadata: shopifyOrder.customer
+        // Create or update customer using email as unique identifier
+        let customer = null
+        if (shopifyOrder.customer && shopifyOrder.customer.email) {
+            // First try to find existing customer
+            customer = await prisma.customer.findFirst({
+                where: { 
+                    email: shopifyOrder.customer.email,
+                    storeId: store.id
+                }
+            })
+            
+            if (customer) {
+                // Update existing customer
+                customer = await prisma.customer.update({
+                    where: { id: customer.id },
+                    data: {
+                        firstName: shopifyOrder.customer.first_name,
+                        lastName: shopifyOrder.customer.last_name,
+                        phone: shopifyOrder.customer.phone,
+                        traits: shopifyOrder.customer
+                    }
+                })
+                console.log(`Customer updated: ${customer.id}`)
+            } else {
+                // Create new customer
+                customer = await prisma.customer.create({
+                    data: {
+                        storeId: store.id,
+                        email: shopifyOrder.customer.email,
+                        firstName: shopifyOrder.customer.first_name,
+                        lastName: shopifyOrder.customer.last_name,
+                        phone: shopifyOrder.customer.phone,
+                        traits: shopifyOrder.customer
+                    }
+                })
+                console.log(`Customer created: ${customer.id}`)
             }
-        })
+        }
 
         // Create the order
         const order = await prisma.order.create({
             data: {
-                externalId: shopifyOrder.id.toString(),
                 storeId: store.id,
-                customerId: customer.id,
-                orderNumber: shopifyOrder.order_number.toString(),
-                status: shopifyOrder.financial_status === 'paid' ? 'PAID' : 'PENDING',
-                subtotal: parseFloat(shopifyOrder.subtotal_price),
+                customerId: customer ? customer.id : null,
                 total: parseFloat(shopifyOrder.total_price),
-                currency: shopifyOrder.currency,
+                status: shopifyOrder.financial_status === 'paid' ? 'PAID' : 'PENDING',
                 items: shopifyOrder.line_items,
-                metadata: shopifyOrder,
-                createdAt: new Date(shopifyOrder.created_at),
-                updatedAt: new Date(shopifyOrder.updated_at)
+                metadata: {
+                    shopifyOrderId: shopifyOrder.id,
+                    orderNumber: shopifyOrder.order_number,
+                    subtotal: shopifyOrder.subtotal_price,
+                    currency: shopifyOrder.currency,
+                    fullOrder: shopifyOrder
+                }
             }
         })
 
