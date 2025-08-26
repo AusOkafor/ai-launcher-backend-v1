@@ -89,9 +89,9 @@ export default async function handler(req, res) {
                 shopifyOrder.id.toString(),
                 shopifyOrder.order_number.toString(),
                 JSON.stringify(shopifyOrder.line_items),
-                parseFloat(shopifyOrder.total_price),
-                shopifyOrder.financial_status === 'paid' ? 'PAID' : 'PENDING',
-                JSON.stringify({
+                                 parseFloat(shopifyOrder.total_price),
+                 shopifyOrder.financial_status === 'paid' ? 'CONFIRMED' : 'PENDING',
+                 JSON.stringify({
                     shopifyOrderId: shopifyOrder.id,
                     orderNumber: shopifyOrder.order_number,
                     subtotal: shopifyOrder.subtotal_price,
