@@ -31,7 +31,13 @@ export default async function handler(req, res) {
             })
         }
 
-        // Try to use Prisma
+        // Try to use Prisma with connection handling
+        console.log('Attempting to connect to database...')
+        
+        // Test connection first
+        await prisma.$connect()
+        console.log('Database connection successful')
+        
         const carts = await prisma.cart.findMany({
             where: {
                 storeId: storeId,
