@@ -33,7 +33,7 @@ export default async function handler(req, res) {
 
         // Try to use Prisma
         console.log('Fetching carts from database...')
-        
+
         const carts = await prisma.cart.findMany({
             where: {
                 storeId: storeId,
