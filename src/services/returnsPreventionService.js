@@ -1,575 +1,697 @@
-import { prisma } from '../db.js';
-import { aiService } from './ai.js';
-import { logger } from '../utils/logger.js';
+import { prisma } from '../db.js'
+import { aiService } from './ai.js'
+import { twilioService } from './twilio.js'
+import { sendGridService } from './sendgrid.js'
 
 class ReturnsPreventionService {
     constructor() {
+        this.aiService = aiService
+        this.twilioService = twilioService
+        this.sendGridService = sendGridService
         this.riskFactors = {
-            SIZE_MISMATCH: 0.3,
-            COLOR_DISCREPANCY: 0.25,
-            QUALITY_ISSUES: 0.2,
-            EXPECTATION_GAP: 0.15,
-            DELIVERY_DELAY: 0.1
-        };
+            HIGH: 'high',
+            MEDIUM: 'medium',
+            LOW: 'low'
+        }
     }
 
-    // Predict return risk for an order
-    async predictReturnRisk(orderId) {
+    /**
+     * Assess return risk for an order
+     */
+    async assessReturnRisk(order, customer, products) {
         try {
-            const order = await prisma.order.findUnique({
-                where: { id: orderId },
-                include: {
-                    items: true,
-                    customer: true,
-                    store: true
-                }
-            });
+            const riskScore = await this.calculateRiskScore(order, customer, products)
+            const riskLevel = this.determineRiskLevel(riskScore)
+            const riskFactors = await this.identifyRiskFactors(order, customer, products)
+            const preventionStrategies = await this.generatePreventionStrategies(riskLevel, riskFactors)
 
-            if (!order) {
-                throw new Error('Order not found');
-            }
-
-            // Calculate risk score based on multiple factors
-            const riskFactors = await this.analyzeRiskFactors(order);
-            const riskScore = this.calculateRiskScore(riskFactors);
-            const riskLevel = this.categorizeRiskLevel(riskScore);
-
-            // Store risk prediction
-            const riskPrediction = await prisma.returnRisk.create({
-                data: {
-                    orderId: order.id,
-                    customerId: order.customerId,
-                    storeId: order.storeId,
-                    riskScore,
-                    riskLevel,
-                    riskFactors,
-                    predictedAt: new Date(),
-                    status: 'PREDICTED'
-                }
-            });
-
-            logger.info(`Return risk predicted for order ${orderId}: ${riskLevel} (${riskScore.toFixed(2)})`);
             return {
-                riskPrediction,
+                success: true,
+                orderId: order.id,
                 riskScore,
                 riskLevel,
                 riskFactors,
-                recommendations: await this.generateSpecificRecommendations(order, { riskLevel, riskFactors })
-            };
+                preventionStrategies,
+                assessmentDate: new Date().toISOString()
+            }
         } catch (error) {
-            logger.error('Error predicting return risk:', error);
-            throw error;
+            console.error('Error assessing return risk:', error)
+            throw error
         }
     }
 
-    // Analyze risk factors for an order
-    async analyzeRiskFactors(order) {
-        const factors = {};
+    /**
+     * Calculate risk score based on multiple factors
+     */
+    async calculateRiskScore(order, customer, products) {
+        let score = 0
+        const maxScore = 100
 
-        // Customer history analysis
-        const customerHistory = await this.analyzeCustomerHistory(order.customerId);
-        factors.customerReturnRate = customerHistory.returnRate;
-        factors.customerOrderCount = customerHistory.orderCount;
+        // Customer history factors (30 points)
+        const customerHistory = await this.getCustomerHistory(customer.id, order.storeId)
+        score += this.calculateCustomerHistoryScore(customerHistory)
 
-        // Product-specific risk factors
-        const productRisks = await this.analyzeProductRisks(order.items);
-        factors.productRisk = productRisks.averageRisk;
-        factors.sizeRisk = productRisks.sizeRisk;
-        factors.colorRisk = productRisks.colorRisk;
+        // Product factors (25 points)
+        score += this.calculateProductRiskScore(products)
 
-        // Order characteristics
-        factors.orderValue = parseFloat(order.total);
-        factors.itemCount = order.items.length;
-        factors.isFirstTimeCustomer = customerHistory.orderCount === 1;
+        // Order factors (25 points)
+        score += this.calculateOrderRiskScore(order)
 
-        // Seasonal and timing factors
-        factors.seasonalRisk = this.calculateSeasonalRisk();
-        factors.deliveryRisk = this.calculateDeliveryRisk(order);
+        // Seasonal/timing factors (20 points)
+        score += this.calculateSeasonalRiskScore(order)
 
-        return factors;
+        return Math.min(score, maxScore)
     }
 
-    // Analyze customer return history
-    async analyzeCustomerHistory(customerId) {
+    /**
+     * Get customer purchase and return history
+     */
+    async getCustomerHistory(customerId, storeId) {
         try {
-            const customerOrders = await prisma.order.findMany({
-                where: { customerId },
-                include: {
-                    items: true
+            const orders = await prisma.order.findMany({
+                where: {
+                    customerId,
+                    storeId,
+                    status: { in: ['CONFIRMED', 'RETURNED', 'REFUNDED']
+                    }
+                },
+                orderBy: {
+                    createdAt: 'desc'
                 }
-            });
+            })
 
-            const totalOrders = customerOrders.length;
-            const returnedOrders = customerOrders.filter(order =>
-                order.status === 'RETURNED' || (order.metadata && order.metadata.returned)
-            ).length;
-
-            const returnRate = totalOrders > 0 ? returnedOrders / totalOrders : 0;
+            const totalOrders = orders.length
+            const returnedOrders = orders.filter(o => o.status === 'RETURNED' || o.status === 'REFUNDED').length
+            const returnRate = totalOrders > 0 ? returnedOrders / totalOrders : 0
 
             return {
-                orderCount: totalOrders,
+                totalOrders,
+                returnedOrders,
                 returnRate,
-                averageOrderValue: customerOrders.reduce((sum, order) =>
-                    sum + parseFloat(order.total), 0) / totalOrders || 0
-            };
+                averageOrderValue: orders.reduce((sum, o) => sum + parseFloat(o.total), 0) / totalOrders || 0,
+                lastOrderDate: orders[0] ? orders[0].createdAt : null,
+                orderFrequency: this.calculateOrderFrequency(orders)
+            }
         } catch (error) {
-            logger.error('Error analyzing customer history:', error);
-            return { orderCount: 0, returnRate: 0, averageOrderValue: 0 };
-        }
-    }
-
-    // Analyze product-specific risks
-    async analyzeProductRisks(items) {
-        const risks = {
-            sizeRisk: 0,
-            colorRisk: 0,
-            qualityRisk: 0,
-            averageRisk: 0
-        };
-
-        for (const item of items) {
-            // Size risk for clothing items
-            if ((item.category && item.category.toLowerCase().includes('clothing')) ||
-                (item.title && item.title.toLowerCase().includes('shirt')) ||
-                (item.title && item.title.toLowerCase().includes('dress'))) {
-                risks.sizeRisk += 0.3;
-            }
-
-            // Color risk for items with specific colors
-            if ((item.title && item.title.toLowerCase().includes('teal')) ||
-                (item.title && item.title.toLowerCase().includes('blue')) ||
-                (item.title && item.title.toLowerCase().includes('red'))) {
-                risks.colorRisk += 0.2;
-            }
-
-            // Quality risk based on price point
-            const price = parseFloat(item.price);
-            if (price < 20) {
-                risks.qualityRisk += 0.1;
-            } else if (price > 100) {
-                risks.qualityRisk += 0.2;
-            }
-        }
-
-        risks.averageRisk = (risks.sizeRisk + risks.colorRisk + risks.qualityRisk) / items.length;
-        return risks;
-    }
-
-    // Calculate seasonal risk
-    calculateSeasonalRisk() {
-        const month = new Date().getMonth();
-        const seasonalFactors = {
-            11: 0.3, // December - holiday returns
-            0: 0.25, // January - post-holiday returns
-            8: 0.2, // September - back to school
-            5: 0.15 // June - summer returns
-        };
-
-        return seasonalFactors[month] || 0.1;
-    }
-
-    // Calculate delivery risk
-    calculateDeliveryRisk(order) {
-        // Simulate delivery risk based on order characteristics
-        const baseRisk = 0.1;
-        const valueRisk = parseFloat(order.total) > 100 ? 0.2 : 0;
-        const itemCountRisk = order.items.length > 3 ? 0.15 : 0;
-
-        return baseRisk + valueRisk + itemCountRisk;
-    }
-
-    // Calculate overall risk score
-    calculateRiskScore(factors) {
-        let score = 0;
-
-        // Customer factors (30% weight)
-        score += factors.customerReturnRate * 0.3;
-        score += (factors.isFirstTimeCustomer ? 0.1 : 0) * 0.3;
-
-        // Product factors (40% weight)
-        score += factors.productRisk * 0.4;
-        score += factors.sizeRisk * 0.4;
-        score += factors.colorRisk * 0.4;
-
-        // Order factors (20% weight)
-        score += (factors.orderValue > 100 ? 0.2 : 0) * 0.2;
-        score += (factors.itemCount > 3 ? 0.15 : 0) * 0.2;
-
-        // Environmental factors (10% weight)
-        score += factors.seasonalRisk * 0.1;
-        score += factors.deliveryRisk * 0.1;
-
-        return Math.min(score, 1.0); // Cap at 1.0
-    }
-
-    // Categorize risk level
-    categorizeRiskLevel(riskScore) {
-        if (riskScore >= 0.7) return 'HIGH';
-        if (riskScore >= 0.4) return 'MEDIUM';
-        return 'LOW';
-    }
-
-    // Generate pre-shipment advice
-    async generatePreShipmentAdvice(orderId) {
-        try {
-            const order = await prisma.order.findUnique({
-                where: { id: orderId },
-                include: {
-                    items: true,
-                    customer: true
-                }
-            });
-
-            if (!order) {
-                throw new Error('Order not found');
-            }
-
-            const riskPrediction = await this.predictReturnRisk(orderId);
-            const advice = await this.generateAdviceContent(order, riskPrediction);
-
-            // Store advice
-            const storedAdvice = await prisma.preShipmentAdvice.create({
-                data: {
-                    orderId: order.id,
-                    customerId: order.customerId,
-                    riskLevel: riskPrediction.riskLevel,
-                    advice: advice.content,
-                    recommendations: advice.recommendations,
-                    generatedAt: new Date(),
-                    status: 'GENERATED'
-                }
-            });
-
+            console.error('Error getting customer history:', error)
             return {
-                advice: storedAdvice,
-                riskPrediction,
-                content: advice.content,
-                recommendations: advice.recommendations
-            };
-        } catch (error) {
-            logger.error('Error generating pre-shipment advice:', error);
-            throw error;
+                totalOrders: 0,
+                returnedOrders: 0,
+                returnRate: 0,
+                averageOrderValue: 0,
+                lastOrderDate: null,
+                orderFrequency: 'new'
+            }
         }
     }
 
-    // Generate advice content using AI
-    async generateAdviceContent(order, riskPrediction) {
+    /**
+     * Calculate customer history risk score
+     */
+    calculateCustomerHistoryScore(history) {
+        let score = 0
+
+        // Return rate impact (0-15 points)
+        if (history.returnRate > 0.3) score += 15
+        else if (history.returnRate > 0.2) score += 10
+        else if (history.returnRate > 0.1) score += 5
+
+        // Order frequency impact (0-10 points)
+        if (history.orderFrequency === 'new') score += 8
+        else if (history.orderFrequency === 'infrequent') score += 5
+        else if (history.orderFrequency === 'regular') score += 2
+
+        // Average order value impact (0-5 points)
+        if (history.averageOrderValue > 200) score += 5
+        else if (history.averageOrderValue > 100) score += 3
+        else if (history.averageOrderValue > 50) score += 1
+
+        return score
+    }
+
+    /**
+     * Calculate product risk score
+     */
+    calculateProductRiskScore(products) {
+        let score = 0
+
+        for (const product of products) {
+            // Product category risk (0-10 points)
+            const categoryRisk = this.getCategoryRisk(product.category)
+            score += categoryRisk
+
+            // Product price risk (0-8 points)
+            const price = parseFloat(product.price)
+            if (price > 200) score += 8
+            else if (price > 100) score += 5
+            else if (price > 50) score += 3
+
+            // Product type risk (0-7 points)
+            const typeRisk = this.getProductTypeRisk(product.title, product.description)
+            score += typeRisk
+        }
+
+        return Math.min(score, 25) // Cap at 25 points
+    }
+
+    /**
+     * Calculate order risk score
+     */
+    calculateOrderRiskScore(order) {
+        let score = 0
+
+        // Order value risk (0-10 points)
+        const orderValue = parseFloat(order.total)
+        if (orderValue > 300) score += 10
+        else if (orderValue > 200) score += 7
+        else if (orderValue > 100) score += 5
+        else if (orderValue > 50) score += 3
+
+        // Order size risk (0-8 points)
+        const itemCount = order.items ? order.items.length : 1
+        if (itemCount > 5) score += 8
+        else if (itemCount > 3) score += 5
+        else if (itemCount > 1) score += 3
+
+        // Shipping method risk (0-7 points)
+        if (order.shippingMethod === 'express') score += 7
+        else if (order.shippingMethod === 'standard') score += 3
+
+        return Math.min(score, 25) // Cap at 25 points
+    }
+
+    /**
+     * Calculate seasonal risk score
+     */
+    calculateSeasonalRiskScore(order) {
+        let score = 0
+        const orderDate = new Date(order.createdAt)
+        const month = orderDate.getMonth()
+
+        // Holiday season risk (0-10 points)
+        if (month === 11 || month === 0) score += 10 // December/January
+        else if (month === 10) score += 7 // November (Black Friday)
+        else if (month === 5) score += 5 // June (graduation season)
+
+        // Weekend orders (0-5 points)
+        const dayOfWeek = orderDate.getDay()
+        if (dayOfWeek === 0 || dayOfWeek === 6) score += 5
+
+        // Time of day risk (0-5 points)
+        const hour = orderDate.getHours()
+        if (hour >= 22 || hour <= 6) score += 5 // Late night orders
+
+        return Math.min(score, 20) // Cap at 20 points
+    }
+
+    /**
+     * Get category-specific risk scores
+     */
+    getCategoryRisk(category) {
+        const categoryRisks = {
+            'Clothing': 8,
+            'Shoes': 7,
+            'Electronics': 6,
+            'Home & Garden': 5,
+            'Beauty': 4,
+            'Sports': 6,
+            'Books': 2,
+            'Food': 3,
+            'default': 5
+        }
+
+        return categoryRisks[category] || categoryRisks.default
+    }
+
+    /**
+     * Get product type risk based on title/description
+     */
+    getProductTypeRisk(title, description) {
+        const text = `${title} ${description}`.toLowerCase()
+        let risk = 0
+
+        // Size-dependent items
+        if (text.includes('size') || text.includes('fit') || text.includes('measurement')) {
+            risk += 4
+        }
+
+        // Color-dependent items
+        if (text.includes('color') || text.includes('colour') || text.includes('shade')) {
+            risk += 3
+        }
+
+        // Fragile items
+        if (text.includes('fragile') || text.includes('delicate') || text.includes('breakable')) {
+            risk += 3
+        }
+
+        // High-value items
+        if (text.includes('premium') || text.includes('luxury') || text.includes('designer')) {
+            risk += 2
+        }
+
+        return Math.min(risk, 7) // Cap at 7 points
+    }
+
+    /**
+     * Calculate order frequency
+     */
+    calculateOrderFrequency(orders) {
+        if (orders.length === 0) return 'new'
+        if (orders.length === 1) return 'new'
+
+        const firstOrder = orders[orders.length - 1].createdAt
+        const lastOrder = orders[0].createdAt
+        const daysBetween = (lastOrder - firstOrder) / (1000 * 60 * 60 * 24)
+        const averageDays = daysBetween / (orders.length - 1)
+
+        if (averageDays <= 30) return 'frequent'
+        if (averageDays <= 90) return 'regular'
+        return 'infrequent'
+    }
+
+    /**
+     * Determine risk level based on score
+     */
+    determineRiskLevel(score) {
+        if (score >= 70) return this.riskFactors.HIGH
+        if (score >= 40) return this.riskFactors.MEDIUM
+        return this.riskFactors.LOW
+    }
+
+    /**
+     * Identify specific risk factors
+     */
+    async identifyRiskFactors(order, customer, products) {
+        const factors = []
+
+        // Customer factors
+        const history = await this.getCustomerHistory(customer.id, order.storeId)
+        if (history.returnRate > 0.2) {
+            factors.push({
+                type: 'customer',
+                factor: 'high_return_rate',
+                description: `Customer has ${(history.returnRate * 100).toFixed(1)}% return rate`,
+                impact: 'high'
+            })
+        }
+
+        if (history.orderFrequency === 'new') {
+            factors.push({
+                type: 'customer',
+                factor: 'new_customer',
+                description: 'First-time customer',
+                impact: 'medium'
+            })
+        }
+
+        // Product factors
+        for (const product of products) {
+            const categoryRisk = this.getCategoryRisk(product.category)
+            if (categoryRisk >= 7) {
+                factors.push({
+                    type: 'product',
+                    factor: 'high_risk_category',
+                    description: `${product.category} has high return risk`,
+                    impact: 'high'
+                })
+            }
+
+            const price = parseFloat(product.price)
+            if (price > 200) {
+                factors.push({
+                    type: 'product',
+                    factor: 'high_value_item',
+                    description: `High-value item ($${price})`,
+                    impact: 'medium'
+                })
+            }
+        }
+
+        // Order factors
+        const orderValue = parseFloat(order.total)
+        if (orderValue > 300) {
+            factors.push({
+                type: 'order',
+                factor: 'large_order',
+                description: `Large order value ($${orderValue})`,
+                impact: 'medium'
+            })
+        }
+
+        return factors
+    }
+
+    /**
+     * Generate prevention strategies based on risk level and factors
+     */
+    async generatePreventionStrategies(riskLevel, riskFactors) {
             try {
-                const items = order.items.map(item =>
-                    `${item.title} (${item.quantity}x) - $${item.price}`
-                ).join(', ');
-
-                const prompt = `
-Generate pre-shipment advice for this order to reduce return risk:
-
-Order Details:
-- Customer: ${order.customer && order.customer.firstName || 'Guest'}
-- Items: ${items}
-- Total: $${order.total}
-- Risk Level: ${riskPrediction.riskLevel} (${(riskPrediction.riskScore * 100).toFixed(1)}%)
+                const prompt = `Generate return prevention strategies for an e-commerce order with ${riskLevel} risk level.
 
 Risk Factors:
-${Object.entries(riskPrediction.riskFactors).map(([factor, value]) => 
-    `- ${factor}: ${typeof value === 'number' ? (value * 100).toFixed(1) + '%' : value}`
-).join('\n')}
+${riskFactors.map(f => `- ${f.description} (${f.impact} impact)`).join('\n')}
 
-Generate:
-1. Personalized pre-shipment message
-2. Size/fit recommendations
-3. Care instructions
-4. What to expect
-5. Contact information for questions
-6. Return policy reminder
+Generate specific prevention strategies including:
+1. Proactive communication messages
+2. Product education content
+3. Customer support recommendations
+4. Follow-up timing suggestions
 
-Tone: Helpful, reassuring, professional
-Goal: Reduce returns by setting proper expectations
-            `;
+Format as JSON:
+{
+  "communication": {
+    "immediate": "message to send right after order",
+    "shipping": "message to send when shipped",
+    "delivery": "message to send when delivered",
+    "followup": "message to send 2-3 days after delivery"
+  },
+  "education": {
+    "sizing_guide": "sizing information if applicable",
+    "care_instructions": "care and maintenance tips",
+    "usage_tips": "how to get the most from the product"
+  },
+  "support": {
+    "proactive_contact": "when to proactively reach out",
+    "support_resources": "what support to offer",
+    "exchange_options": "exchange vs return guidance"
+  },
+  "timing": {
+    "immediate_contact": "hours after order",
+    "shipping_contact": "hours after shipping",
+    "delivery_contact": "hours after delivery",
+    "followup_contact": "days after delivery"
+  }
+}`
 
-            const response = await aiService.generateText(prompt, {
+            const response = await this.aiService.generateText(prompt, {
                 model: 'mistralai/Mistral-7B-Instruct-v0.1',
-                maxTokens: 500,
+                provider: 'togetherai',
+                maxTokens: 800,
                 temperature: 0.7
-            });
+            })
 
-            const recommendations = await this.generateSpecificRecommendations(order, riskPrediction);
-
-            return {
-                content: response.text,
-                recommendations
-            };
-        } catch (error) {
-            logger.error('Error generating advice content:', error);
-            throw error;
-        }
-    }
-
-    // Generate specific recommendations
-    async generateSpecificRecommendations(order, riskPrediction) {
-        const recommendations = [];
-
-        // Size recommendations for clothing
-        const clothingItems = order.items.filter(item => 
-            (item.category && item.category.toLowerCase().includes('clothing')) ||
-            (item.title && item.title.toLowerCase().includes('shirt')) ||
-            (item.title && item.title.toLowerCase().includes('dress'))
-        );
-
-        if (clothingItems.length > 0) {
-            recommendations.push({
-                type: 'SIZE_GUIDE',
-                title: 'Size Guide',
-                description: 'Check our size guide for accurate measurements',
-                priority: 'HIGH'
-            });
-        }
-
-        // Color recommendations
-        const coloredItems = order.items.filter(item =>
-            (item.title && item.title.toLowerCase().includes('teal')) ||
-            (item.title && item.title.toLowerCase().includes('blue')) ||
-            (item.title && item.title.toLowerCase().includes('red'))
-        );
-
-        if (coloredItems.length > 0) {
-            recommendations.push({
-                type: 'COLOR_INFO',
-                title: 'Color Information',
-                description: 'Colors may vary slightly due to monitor settings',
-                priority: 'MEDIUM'
-            });
-        }
-
-        // First-time customer recommendations
-        if (riskPrediction.riskFactors.isFirstTimeCustomer) {
-            recommendations.push({
-                type: 'WELCOME',
-                title: 'Welcome Gift',
-                description: 'Consider adding a welcome note or small gift',
-                priority: 'HIGH'
-            });
-        }
-
-        // High-value order recommendations
-        if (parseFloat(order.total) > 100) {
-            recommendations.push({
-                type: 'PREMIUM_SERVICE',
-                title: 'Premium Service',
-                description: 'Offer expedited shipping or premium packaging',
-                priority: 'MEDIUM'
-            });
-        }
-
-        return recommendations;
-    }
-
-    // Generate alternative recommendations
-    async generateAlternativeRecommendations(orderId) {
-        try {
-            const order = await prisma.order.findUnique({
-                where: { id: orderId },
-                include: {
-                    items: true,
-                    customer: true
-                }
-            });
-
-            if (!order) {
-                throw new Error('Order not found');
+            try {
+                return JSON.parse(response.text)
+            } catch (parseError) {
+                // Fallback strategies
+                return this.getFallbackStrategies(riskLevel)
             }
-
-            const alternatives = [];
-
-            for (const item of order.items) {
-                const itemAlternatives = await this.findProductAlternatives(item);
-                alternatives.push({
-                    originalItem: item,
-                    alternatives: itemAlternatives
-                });
-            }
-
-            return alternatives;
         } catch (error) {
-            logger.error('Error generating alternative recommendations:', error);
-            throw error;
+            console.error('Error generating prevention strategies:', error)
+            return this.getFallbackStrategies(riskLevel)
         }
     }
 
-    // Find product alternatives
-    async findProductAlternatives(item) {
-        try {
-            // Find similar products in the same category
-            const alternatives = await prisma.product.findMany({
-                where: {
-                    category: item.category,
-                    id: { not: item.id },
-                    status: 'ACTIVE'
+    /**
+     * Fallback prevention strategies
+     */
+    getFallbackStrategies(riskLevel) {
+        const strategies = {
+            low: {
+                communication: {
+                    immediate: "Thank you for your order! We're excited to get your items to you.",
+                    shipping: "Your order is on its way! Track your delivery here.",
+                    delivery: "Your order has been delivered! We hope you love it.",
+                    followup: "How are you enjoying your purchase? We'd love to hear from you!"
                 },
-                take: 3,
-                orderBy: {
-                    price: 'asc'
+                education: {
+                    sizing_guide: "",
+                    care_instructions: "Follow the care instructions included with your product.",
+                    usage_tips: "Take time to read the product instructions for best results."
+                },
+                support: {
+                    proactive_contact: "Only if customer reaches out",
+                    support_resources: "Standard customer service",
+                    exchange_options: "Standard return policy"
+                },
+                timing: {
+                    immediate_contact: 1,
+                    shipping_contact: 24,
+                    delivery_contact: 2,
+                    followup_contact: 3
                 }
-            });
-
-            return alternatives.map(alt => ({
-                id: alt.id,
-                title: alt.title,
-                price: alt.price,
-                image: alt.images && alt.images[0],
-                reason: this.generateAlternativeReason(item, alt)
-            }));
-        } catch (error) {
-            logger.error('Error finding product alternatives:', error);
-            return [];
+            },
+            medium: {
+                communication: {
+                    immediate: "Thank you for your order! We want to ensure you're completely satisfied.",
+                    shipping: "Your order is shipping! We've included helpful information to ensure you love your purchase.",
+                    delivery: "Your order has arrived! We're here to help if you need anything.",
+                    followup: "We want to make sure you're happy with your purchase. How is everything working out?"
+                },
+                education: {
+                    sizing_guide: "Check our sizing guide to ensure the perfect fit.",
+                    care_instructions: "Proper care will help your product last longer.",
+                    usage_tips: "Take a moment to review the product features for the best experience."
+                },
+                support: {
+                    proactive_contact: "Within 24 hours of delivery",
+                    support_resources: "Enhanced customer service with sizing help",
+                    exchange_options: "Easy exchange process for better fit"
+                },
+                timing: {
+                    immediate_contact: 1,
+                    shipping_contact: 12,
+                    delivery_contact: 1,
+                    followup_contact: 2
+                }
+            },
+            high: {
+                communication: {
+                    immediate: "Thank you for your order! We're committed to ensuring your complete satisfaction.",
+                    shipping: "Your order is on its way! We've included detailed information to help you get the most from your purchase.",
+                    delivery: "Your order has been delivered! We're here to help with any questions or concerns.",
+                    followup: "We want to ensure you're completely satisfied. Please let us know if you need any assistance!"
+                },
+                education: {
+                    sizing_guide: "We've included a detailed sizing guide. Please measure carefully for the best fit.",
+                    care_instructions: "Proper care is essential for this product. Please review the care instructions.",
+                    usage_tips: "This product works best when used as directed. Please read the instructions carefully."
+                },
+                support: {
+                    proactive_contact: "Within 2 hours of delivery",
+                    support_resources: "Priority customer service with personal assistance",
+                    exchange_options: "Immediate exchange options available"
+                },
+                timing: {
+                    immediate_contact: 1,
+                    shipping_contact: 6,
+                    delivery_contact: 1,
+                    followup_contact: 1
+                }
+            }
         }
+
+        return strategies[riskLevel] || strategies.medium
     }
 
-    // Generate reason for alternative recommendation
-    generateAlternativeReason(originalItem, alternative) {
-        const originalPrice = parseFloat(originalItem.price);
-        const altPrice = parseFloat(alternative.price);
-
-        if (altPrice < originalPrice * 0.8) {
-            return 'More affordable option';
-        } else if (altPrice > originalPrice * 1.2) {
-            return 'Premium alternative';
-        } else {
-            return 'Similar style, different option';
-        }
-    }
-
-    // Optimize customer satisfaction
-    async optimizeCustomerSatisfaction(customerId) {
+    /**
+     * Execute prevention strategies for an order
+     */
+    async executePreventionStrategies(orderId, strategies, customer) {
         try {
-            const customer = await prisma.customer.findUnique({
-                where: { id: customerId },
-                include: {
-                    orders: {
-                        include: {
-                            items: true
+            const results = {
+                orderId,
+                strategiesExecuted: [],
+                success: true,
+                errors: []
+            }
+
+            // Immediate communication
+            if (strategies.communication.immediate) {
+                try {
+                    await this.sendImmediateMessage(customer, strategies.communication.immediate)
+                    results.strategiesExecuted.push('immediate_communication')
+                } catch (error) {
+                    results.errors.push(`Immediate communication failed: ${error.message}`)
+                }
+            }
+
+            // Schedule follow-up communications
+            await this.scheduleFollowUpCommunications(orderId, strategies, customer)
+
+            // Log prevention attempt
+            await this.logPreventionAttempt(orderId, strategies, results)
+
+            return results
+        } catch (error) {
+            console.error('Error executing prevention strategies:', error)
+            throw error
+        }
+    }
+
+    /**
+     * Send immediate message to customer
+     */
+    async sendImmediateMessage(customer, message) {
+        const results = {
+            email: false,
+            sms: false,
+            whatsapp: false
+        }
+
+        // Send email
+        if (customer.email) {
+            try {
+                await this.sendGridService.sendEmail(
+                    customer.email,
+                    'Thank you for your order!',
+                    message,
+                    `<p>${message}</p>`
+                )
+                results.email = true
+            } catch (error) {
+                console.error('Email send failed:', error)
+            }
+        }
+
+        // Send SMS/WhatsApp
+        if (customer.phone) {
+            try {
+                await this.twilioService.sendMessage(customer.phone, message, 'whatsapp')
+                results.whatsapp = true
+            } catch (error) {
+                try {
+                    await this.twilioService.sendMessage(customer.phone, message, 'sms')
+                    results.sms = true
+                } catch (smsError) {
+                    console.error('SMS send failed:', smsError)
+                }
+            }
+        }
+
+        return results
+    }
+
+    /**
+     * Schedule follow-up communications
+     */
+    async scheduleFollowUpCommunications(orderId, strategies, customer) {
+        // This would integrate with a job queue system like BullMQ
+        // For now, we'll log the scheduled communications
+        const scheduledCommunications = [
+            {
+                type: 'shipping',
+                timing: strategies.timing.shipping_contact,
+                message: strategies.communication.shipping
+            },
+            {
+                type: 'delivery',
+                timing: strategies.timing.delivery_contact,
+                message: strategies.communication.delivery
+            },
+            {
+                type: 'followup',
+                timing: strategies.timing.followup_contact * 24, // Convert days to hours
+                message: strategies.communication.followup
+            }
+        ]
+
+        console.log(`Scheduled ${scheduledCommunications.length} follow-up communications for order ${orderId}`)
+        return scheduledCommunications
+    }
+
+    /**
+     * Log prevention attempt
+     */
+    async logPreventionAttempt(orderId, strategies, results) {
+        try {
+            await prisma.event.create({
+                data: {
+                    workspaceId: 'returns-prevention',
+                    type: 'returns_prevention_attempt',
+                    payload: {
+                        orderId,
+                        strategies,
+                        results,
+                        timestamp: new Date().toISOString()
+                    }
+                }
+            })
+        } catch (error) {
+            console.error('Error logging prevention attempt:', error)
+        }
+    }
+
+    /**
+     * Get returns prevention analytics
+     */
+    async getPreventionAnalytics(storeId, days = 30) {
+        try {
+            const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+
+            const events = await prisma.event.findMany({
+                where: {
+                    type: {
+                        startsWith: 'returns_prevention'
+                    },
+                    ts: {
+                        gte: startDate
+                    }
+                }
+            })
+
+            const analytics = {
+                totalAssessments: 0,
+                highRiskOrders: 0,
+                mediumRiskOrders: 0,
+                lowRiskOrders: 0,
+                preventionAttempts: 0,
+                successfulPreventions: 0,
+                averageRiskScore: 0,
+                topRiskFactors: [],
+                preventionEffectiveness: 0
+            }
+
+            let totalRiskScore = 0
+            const riskFactorCounts = {}
+
+            for (const event of events) {
+                const payload = event.payload || {}
+
+                if (event.type === 'returns_prevention_attempt') {
+                    analytics.preventionAttempts++
+                    if (payload.results && payload.results.success) {
+                        analytics.successfulPreventions++
+                    }
+                } else if (event.type === 'returns_risk_assessment') {
+                    analytics.totalAssessments++
+                    totalRiskScore += payload.riskScore || 0
+
+                    if (payload.riskLevel === 'high') analytics.highRiskOrders++
+                    else if (payload.riskLevel === 'medium') analytics.mediumRiskOrders++
+                    else if (payload.riskLevel === 'low') analytics.lowRiskOrders++
+
+                    // Count risk factors
+                    if (payload.riskFactors) {
+                        for (const factor of payload.riskFactors) {
+                            const key = factor.factor
+                            riskFactorCounts[key] = (riskFactorCounts[key] || 0) + 1
                         }
                     }
                 }
-            });
-
-            if (!customer) {
-                throw new Error('Customer not found');
             }
 
-            const satisfactionScore = await this.calculateSatisfactionScore(customer);
-            const optimizationStrategies = await this.generateOptimizationStrategies(customer, satisfactionScore);
+            // Calculate averages and top factors
+            if (analytics.totalAssessments > 0) {
+                analytics.averageRiskScore = totalRiskScore / analytics.totalAssessments
+            }
 
-            return {
-                customerId,
-                satisfactionScore,
-                strategies: optimizationStrategies,
-                recommendations: await this.generateSatisfactionRecommendations(customer, satisfactionScore)
-            };
+            if (analytics.preventionAttempts > 0) {
+                analytics.preventionEffectiveness = analytics.successfulPreventions / analytics.preventionAttempts
+            }
+
+            analytics.topRiskFactors = Object.entries(riskFactorCounts)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 5)
+                .map(([factor, count]) => ({ factor, count }))
+
+            return analytics
         } catch (error) {
-            logger.error('Error optimizing customer satisfaction:', error);
-            throw error;
-        }
-    }
-
-    // Calculate customer satisfaction score
-    async calculateSatisfactionScore(customer) {
-        const orders = customer.orders;
-        if (orders.length === 0) return 0.5; // Neutral for new customers
-
-        let score = 0;
-        let totalWeight = 0;
-
-        for (const order of orders) {
-            const orderAge = (Date.now() - new Date(order.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 365); // years
-            const weight = Math.exp(-orderAge); // Recent orders weighted more
-
-            // Calculate order satisfaction based on various factors
-            const orderSatisfaction = this.calculateOrderSatisfaction(order);
-            score += orderSatisfaction * weight;
-            totalWeight += weight;
-        }
-
-        return totalWeight > 0 ? score / totalWeight : 0.5;
-    }
-
-    // Calculate order satisfaction
-    calculateOrderSatisfaction(order) {
-        let satisfaction = 0.7; // Base satisfaction
-
-        // Adjust based on order status
-        if (order.status === 'COMPLETED') satisfaction += 0.2;
-        if (order.status === 'RETURNED') satisfaction -= 0.3;
-
-        // Adjust based on order value
-        const orderValue = parseFloat(order.total);
-        if (orderValue > 100) satisfaction += 0.1;
-        if (orderValue < 20) satisfaction -= 0.1;
-
-        // Adjust based on item count
-        if (order.items.length > 3) satisfaction += 0.05;
-
-        return Math.max(0, Math.min(1, satisfaction));
-    }
-
-    // Generate optimization strategies
-    async generateOptimizationStrategies(customer, satisfactionScore) {
-        const strategies = [];
-
-        if (satisfactionScore < 0.6) {
-            strategies.push({
-                type: 'RETENTION',
-                title: 'Customer Retention Program',
-                description: 'Implement loyalty program and personalized offers',
-                priority: 'HIGH'
-            });
-        }
-
-        if (customer.orders.length === 1) {
-            strategies.push({
-                type: 'SECOND_PURCHASE',
-                title: 'Second Purchase Incentive',
-                description: 'Offer discount on next purchase',
-                priority: 'HIGH'
-            });
-        }
-
-        if (satisfactionScore > 0.8) {
-            strategies.push({
-                type: 'REFERRAL',
-                title: 'Referral Program',
-                description: 'Encourage customer to refer friends',
-                priority: 'MEDIUM'
-            });
-        }
-
-        return strategies;
-    }
-
-    // Generate satisfaction recommendations
-    async generateSatisfactionRecommendations(customer, satisfactionScore) {
-        try {
-            const prompt = `
-Generate customer satisfaction recommendations for:
-
-Customer: ${customer.firstName} ${customer.lastName}
-Satisfaction Score: ${(satisfactionScore * 100).toFixed(1)}%
-Order Count: ${customer.orders.length}
-Average Order Value: $${customer.orders.reduce((sum, order) => sum + parseFloat(order.total), 0) / customer.orders.length || 0}
-
-Generate 3-5 specific recommendations to improve customer satisfaction and reduce return likelihood.
-            `;
-
-            const response = await aiService.generateText(prompt, {
-                model: 'mistralai/Mistral-7B-Instruct-v0.1',
-                maxTokens: 300,
-                temperature: 0.7
-            });
-
-            return response.text;
-        } catch (error) {
-            logger.error('Error generating satisfaction recommendations:', error);
-            return 'Focus on personalized communication and quality assurance.';
+            console.error('Error getting prevention analytics:', error)
+            throw error
         }
     }
 }
 
-export const returnsPreventionService = new ReturnsPreventionService();
+export const returnsPreventionService = new ReturnsPreventionService()

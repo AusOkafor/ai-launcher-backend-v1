@@ -1,247 +1,206 @@
-import express from 'express';
-import { cartRecoveryService } from '../services/cartRecoveryService.js';
+import express from 'express'
+import { cartRecoveryService } from '../services/cartRecoveryService.js'
 import { prisma } from '../db.js';
-import { logger } from '../utils/logger.js';
 
-const router = express.Router();
+const router = express.Router()
 
-// Get abandoned carts for a store
-router.get('/stores/:storeId/abandoned-carts', async(req, res) => {
+/**
+ * @route GET /api/cart-recovery/abandoned
+ * @desc Get abandoned carts for a store
+ */
+router.get('/abandoned', async (req, res) => {
     try {
-        const { storeId } = req.params;
-        const { threshold = 30 } = req.query;
+        const { storeId, hours = 24 } = req.query
 
-        const abandonedCarts = await cartRecoveryService.detectAbandonedCarts(storeId, parseInt(threshold));
+        if (!storeId) {
+            return res.status(400).json({ error: 'Store ID is required' })
+        }
 
+        const abandonedCarts = await cartRecoveryService.detectAbandonedCarts(storeId, parseInt(hours))
+        
         res.json({
             success: true,
             data: {
                 abandonedCarts,
                 count: abandonedCarts.length,
-                threshold: parseInt(threshold)
+                hoursThreshold: parseInt(hours)
             }
-        });
+        })
     } catch (error) {
-        logger.error('Error getting abandoned carts:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get abandoned carts'
-        });
+        console.error('Error getting abandoned carts:', error)
+        res.status(500).json({ error: 'Failed to get abandoned carts' })
     }
-});
+})
 
-// Generate recovery message for a cart
-router.post('/carts/:cartId/recovery-message', async(req, res) => {
+/**
+ * @route POST /api/cart-recovery/generate-message
+ * @desc Generate AI recovery message for a cart
+ */
+router.post('/generate-message', async (req, res) => {
     try {
-        const { cartId } = req.params;
-        const { platform = 'whatsapp', options = {} } = req.body;
-
-        // Get cart with customer and store info
-        const cart = await prisma.cart.findUnique({
-            where: { id: cartId },
-            include: {
-                customer: true,
-                store: {
-                    include: {
-                        workspace: true
-                    }
-                }
-            }
-        });
+        const { cart, attemptNumber = 1 } = req.body
 
         if (!cart) {
-            return res.status(404).json({
-                success: false,
-                error: 'Cart not found'
-            });
+            return res.status(400).json({ error: 'Cart data is required' })
         }
 
-        const recoveryMessage = await cartRecoveryService.generateRecoveryMessage(cart, {
-            platform,
-            ...options
-        });
-
+        const messages = await cartRecoveryService.generateRecoveryMessage(cart, attemptNumber)
+        
         res.json({
             success: true,
-            data: recoveryMessage
-        });
-    } catch (error) {
-        logger.error('Error generating recovery message:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to generate recovery message'
-        });
-    }
-});
-
-// Generate incentive for a cart
-router.post('/carts/:cartId/incentive', async(req, res) => {
-    try {
-        const { cartId } = req.params;
-        const { options = {} } = req.body;
-
-        const cart = await prisma.cart.findUnique({
-            where: { id: cartId },
-            include: {
-                customer: true,
-                store: {
-                    include: {
-                        workspace: true
-                    }
-                }
+            data: {
+                messages,
+                cartId: cart.orderId,
+                attemptNumber
             }
-        });
+        })
+    } catch (error) {
+        console.error('Error generating recovery message:', error)
+        res.status(500).json({ error: 'Failed to generate recovery message' })
+    }
+})
+
+/**
+ * @route POST /api/cart-recovery/send-message
+ * @desc Send recovery message to customer
+ */
+router.post('/send-message', async (req, res) => {
+    try {
+        const { cart, messageType = 'urgency', channel = 'all' } = req.body
 
         if (!cart) {
-            return res.status(404).json({
-                success: false,
-                error: 'Cart not found'
-            });
+            return res.status(400).json({ error: 'Cart data is required' })
         }
 
-        const incentive = await cartRecoveryService.generateIncentive(cart, options);
-
-        res.json({
-            success: true,
-            data: incentive
-        });
-    } catch (error) {
-        logger.error('Error generating incentive:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to generate incentive'
-        });
-    }
-});
-
-// Send recovery message
-router.post('/carts/:cartId/send-recovery', async(req, res) => {
-    try {
-        const { cartId } = req.params;
-        const { platform = 'whatsapp', options = {} } = req.body;
-
-        const cart = await prisma.cart.findUnique({
-            where: { id: cartId },
-            include: {
-                customer: true,
-                store: {
-                    include: {
-                        workspace: true
-                    }
-                }
-            }
-        });
-
-        if (!cart) {
-            return res.status(404).json({
-                success: false,
-                error: 'Cart not found'
-            });
-        }
-
-        const result = await cartRecoveryService.processAbandonedCart(cart, {
-            platform,
-            ...options
-        });
-
+        const result = await cartRecoveryService.sendRecoveryMessage(cart, messageType, channel)
+        
         res.json({
             success: true,
             data: result
-        });
+        })
     } catch (error) {
-        logger.error('Error sending recovery message:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to send recovery message'
-        });
+        console.error('Error sending recovery message:', error)
+        res.status(500).json({ error: 'Failed to send recovery message' })
     }
-});
+})
 
-// Get recovery statistics
-router.get('/stores/:storeId/recovery-stats', async(req, res) => {
+/**
+ * @route POST /api/cart-recovery/campaign
+ * @desc Run automated recovery campaign
+ */
+router.post('/campaign', async (req, res) => {
     try {
-        const { storeId } = req.params;
-        const { days = 30 } = req.query;
+        const { 
+            storeId, 
+            hoursThreshold = 24, 
+            maxAttempts = 3, 
+            channels = ['whatsapp', 'email'],
+            messageTypes = ['urgency', 'value', 'social']
+        } = req.body
 
-        const stats = await cartRecoveryService.getRecoveryStats(storeId, parseInt(days));
+        if (!storeId) {
+            return res.status(400).json({ error: 'Store ID is required' })
+        }
 
+        const result = await cartRecoveryService.runRecoveryCampaign(storeId, {
+            hoursThreshold,
+            maxAttempts,
+            channels,
+            messageTypes
+        })
+        
+        res.json({
+            success: true,
+            data: result
+        })
+    } catch (error) {
+        console.error('Error running recovery campaign:', error)
+        res.status(500).json({ error: 'Failed to run recovery campaign' })
+    }
+})
+
+/**
+ * @route GET /api/cart-recovery/stats
+ * @desc Get recovery statistics
+ */
+router.get('/stats', async (req, res) => {
+    try {
+        const { storeId, days = 30 } = req.query
+
+        if (!storeId) {
+            return res.status(400).json({ error: 'Store ID is required' })
+        }
+
+        const stats = await cartRecoveryService.getRecoveryStats(storeId, parseInt(days))
+        
         res.json({
             success: true,
             data: stats
-        });
+        })
     } catch (error) {
-        logger.error('Error getting recovery stats:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get recovery stats'
-        });
+        console.error('Error getting recovery stats:', error)
+        res.status(500).json({ error: 'Failed to get recovery stats' })
     }
-});
+})
 
-// Mark cart as recovered
-router.post('/carts/:cartId/mark-recovered', async(req, res) => {
+/**
+ * @route POST /api/cart-recovery/carts/:cartId/mark-recovered
+ * @desc Mark cart as recovered
+ */
+router.post('/carts/:cartId/mark-recovered', async (req, res) => {
     try {
-        const { cartId } = req.params;
-        const { orderId } = req.body;
+        const { cartId } = req.params
+        const { orderId } = req.body
 
-        await cartRecoveryService.markCartRecovered(cartId, orderId);
+        // Update cart status to recovered
+        await prisma.cart.update({
+            where: { id: cartId },
+            data: { 
+                status: 'CONVERTED',
+                updatedAt: new Date()
+            }
+        })
+
+        // Create recovery event
+        await prisma.event.create({
+            data: {
+                workspaceId: 'recovery-tracking', // You'll need to get the actual workspace ID
+                type: 'cart_recovery_conversion',
+                payload: {
+                    cartId,
+                    orderId,
+                    timestamp: new Date().toISOString()
+                }
+            }
+        })
 
         res.json({
             success: true,
             message: 'Cart marked as recovered'
-        });
+        })
     } catch (error) {
-        logger.error('Error marking cart as recovered:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to mark cart as recovered'
-        });
+        console.error('Error marking cart as recovered:', error)
+        res.status(500).json({ error: 'Failed to mark cart as recovered' })
     }
-});
+})
 
-// Bulk process abandoned carts
-router.post('/stores/:storeId/process-abandoned-carts', async(req, res) => {
-    try {
-        const { storeId } = req.params;
-        const { threshold = 30, platform = 'whatsapp', limit = 10 } = req.body;
-
-        const abandonedCarts = await cartRecoveryService.detectAbandonedCarts(storeId, threshold);
-        const cartsToProcess = abandonedCarts.slice(0, limit);
-
-        const results = [];
-        for (const cart of cartsToProcess) {
-            try {
-                const result = await cartRecoveryService.processAbandonedCart(cart, { platform });
-                results.push({
-                    cartId: cart.id,
-                    success: result.success,
-                    messageId: result.messageId
-                });
-            } catch (error) {
-                results.push({
-                    cartId: cart.id,
-                    success: false,
-                    error: error.message
-                });
-            }
+/**
+ * @route GET /api/cart-recovery/test
+ * @desc Test endpoint for cart recovery
+ */
+router.get('/test', async (req, res) => {
+    res.json({
+        success: true,
+        message: 'Cart Recovery API is working!',
+        endpoints: {
+            'GET /abandoned': 'Get abandoned carts',
+            'POST /generate-message': 'Generate AI recovery message',
+            'POST /send-message': 'Send recovery message',
+            'POST /campaign': 'Run automated campaign',
+            'GET /stats': 'Get recovery statistics',
+            'POST /carts/:id/mark-recovered': 'Mark cart as recovered'
         }
+    })
+})
 
-        res.json({
-            success: true,
-            data: {
-                processed: results.length,
-                successful: results.filter(r => r.success).length,
-                failed: results.filter(r => !r.success).length,
-                results
-            }
-        });
-    } catch (error) {
-        logger.error('Error processing abandoned carts:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to process abandoned carts'
-        });
-    }
-});
-
-export default router;
+export default router

@@ -1,304 +1,351 @@
-import { prisma } from '../db.js';
-import { aiService } from './ai.js';
-import { logger } from '../utils/logger.js';
-import twilio from 'twilio';
+import { prisma } from '../db.js'
+import { aiService } from './ai.js'
+import { twilioService } from './twilio.js'
+import { sendGridService } from './sendgrid.js'
 
 class CartRecoveryService {
     constructor() {
-        this.twilioClient = null;
-        this.initializeTwilio();
-        this.initializeAI();
+        this.aiService = aiService
+        this.twilioService = twilioService
+        this.sendGridService = sendGridService
     }
 
-    async initializeAI() {
+    /**
+     * Detect abandoned carts from recent orders
+     * A cart is considered abandoned if:
+     * - Order was created but not completed within 24 hours
+     * - Customer has email/phone for contact
+     */
+    async detectAbandonedCarts(storeId, hoursThreshold = 24) {
         try {
-            await aiService.initialize();
-            logger.info('AI service initialized for Cart Recovery');
-        } catch (error) {
-            logger.error('Error initializing AI service for Cart Recovery:', error);
-        }
-    }
+            const cutoffTime = new Date(Date.now() - (hoursThreshold * 60 * 60 * 1000))
 
-    async initializeTwilio() {
-        try {
-            if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-                this.twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-                logger.info('Twilio client initialized');
-            } else {
-                logger.warn('Twilio credentials not found. SMS/WhatsApp features will be disabled.');
-            }
-        } catch (error) {
-            logger.error('Error initializing Twilio:', error);
-        }
-    }
-
-    // Detect abandoned carts
-    async detectAbandonedCarts(storeId, abandonmentThreshold = 30) {
-        try {
-            const abandonedCarts = await prisma.cart.findMany({
+            // Find orders that might indicate abandoned carts
+            const potentialAbandonedOrders = await prisma.order.findMany({
                 where: {
-                    storeId,
-                    status: 'ACTIVE',
-                    updatedAt: {
-                        lt: new Date(Date.now() - abandonmentThreshold * 60 * 1000) // minutes ago
+                    storeId: storeId,
+                    status: 'PENDING',
+                    createdAt: {
+                        lt: cutoffTime
                     }
                 },
                 include: {
                     customer: true,
-                    store: {
-                        include: {
-                            workspace: true
+                    store: true
+                }
+            })
+
+            const abandonedCarts = []
+
+            for (const order of potentialAbandonedOrders) {
+                // Check if this customer has a recent successful order
+                const hasRecentSuccessfulOrder = await prisma.order.findFirst({
+                    where: {
+                        storeId: storeId,
+                        customerId: order.customerId,
+                        status: 'CONFIRMED',
+                        createdAt: {
+                            gt: cutoffTime
                         }
                     }
-                }
-            });
+                })
 
-            logger.info(`Detected ${abandonedCarts.length} abandoned carts for store: ${storeId}`);
-            return abandonedCarts;
+                // If no recent successful order, consider it abandoned
+                if (!hasRecentSuccessfulOrder) {
+                    abandonedCarts.push({
+                        orderId: order.id,
+                        customerId: order.customerId,
+                        customer: order.customer,
+                        store: order.store,
+                        items: order.items,
+                        total: order.total,
+                        abandonedAt: order.createdAt,
+                        recoveryAttempts: 0
+                    })
+                }
+            }
+
+            return abandonedCarts
         } catch (error) {
-            logger.error('Error detecting abandoned carts:', error);
-            throw error;
+            console.error('Error detecting abandoned carts:', error)
+            throw error
         }
     }
 
-    // Generate conversational recovery message
-    async generateRecoveryMessage(cart, options = {}) {
-            try {
-                const cartItems = Array.isArray(cart.items) ? cart.items : JSON.parse(cart.items);
-                const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-                const totalValue = parseFloat(cart.subtotal);
+    /**
+     * Generate AI-powered recovery message
+     */
+    async generateRecoveryMessage(cart, attemptNumber = 1) {
+        try {
+            const items = Array.isArray(cart.items) ? cart.items : JSON.parse(cart.items)
+            const itemNames = items.map(item => item.title || item.name).join(', ')
 
-                const prompt = `
-Generate a conversational cart recovery message for this abandoned cart:
+            const prompt = `Generate a compelling cart recovery message for an e-commerce store. 
 
-Cart Details:
-- Total Items: ${totalItems}
-- Cart Value: $${totalValue}
-- Items: ${cartItems.map(item => `Product (${item.quantity}x - $${item.price})`).join(', ')}
+Customer Details:
+- Name: ${cart.customer?.firstName || 'Valued Customer'}
+- Items in cart: ${itemNames}
+- Cart total: $${cart.total}
+- Store: ${cart.store?.name || 'our store'}
 
-Customer: ${cart.customer ? `${cart.customer.firstName} ${cart.customer.lastName}` : 'Guest'}
-Store: ${cart.store ? cart.store.name : 'Our Store'}
+Recovery Attempt: ${attemptNumber}
 
-Generate:
-1. A friendly, conversational opening (personalized if possible)
-2. Reminder about their cart items
-3. Urgency/limited time offer
-4. Incentive suggestion (discount, free shipping, etc.)
-5. Clear call-to-action
-6. Closing with appreciation
+Requirements:
+- Keep it under 160 characters for SMS
+- Be friendly but not pushy
+- Include a sense of urgency
+- Offer value (discount, free shipping, etc.)
+- Include a clear call-to-action
+- Make it personal and relevant
 
-Tone: Friendly, helpful, not pushy
-Platform: ${options.platform || 'WhatsApp'}
-Message Length: ${options.platform === 'SMS' ? '160 characters max' : '280 characters max'}
+Generate 3 different versions with different approaches:
+1. Urgency-based
+2. Value-based (discount/offer)
+3. Social proof-based
 
-Make it feel personal and conversational, not like a generic marketing message.
-            `;
+Format as JSON:
+{
+  "urgency": "message text",
+  "value": "message text", 
+  "social": "message text"
+}`
 
-            const response = await aiService.generateText(prompt, {
+            const response = await this.aiService.generateText(prompt, {
                 model: 'mistralai/Mistral-7B-Instruct-v0.1',
-                maxTokens: 300,
+                provider: 'togetherai',
+                maxTokens: 500,
                 temperature: 0.8
-            });
+            })
 
-            return {
-                message: response.text,
-                cartId: cart.id,
-                customerId: cart.customerId,
-                storeId: cart.storeId,
-                totalValue,
-                totalItems,
-                items: cartItems
-            };
-        } catch (error) {
-            logger.error('Error generating recovery message:', error);
-            throw error;
-        }
-    }
-
-    // Generate incentive offer
-    async generateIncentive(cart, options = {}) {
-        try {
-            const totalValue = parseFloat(cart.subtotal);
-            
-            // Smart incentive logic based on cart value
-            let incentive;
-            if (totalValue >= 100) {
-                incentive = {
-                    type: 'PERCENTAGE_DISCOUNT',
-                    value: 15,
-                    code: `SAVE15${Date.now().toString().slice(-4)}`,
-                    description: '15% off your order'
-                };
-            } else if (totalValue >= 50) {
-                incentive = {
-                    type: 'PERCENTAGE_DISCOUNT',
-                    value: 10,
-                    code: `SAVE10${Date.now().toString().slice(-4)}`,
-                    description: '10% off your order'
-                };
-            } else {
-                incentive = {
-                    type: 'FREE_SHIPPING',
-                    value: 0,
-                    code: `FREESHIP${Date.now().toString().slice(-4)}`,
-                    description: 'Free shipping on your order'
-                };
-            }
-
-            // Add urgency
-            incentive.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-            incentive.cartId = cart.id;
-
-            return incentive;
-        } catch (error) {
-            logger.error('Error generating incentive:', error);
-            throw error;
-        }
-    }
-
-    // Send recovery message via WhatsApp/SMS
-    async sendRecoveryMessage(cart, message, incentive = null, platform = 'whatsapp') {
-        try {
-            if (!this.twilioClient) {
-                logger.warn('Twilio not configured. Message would be sent in production.');
-                return { success: true, message: 'Message queued (Twilio not configured)' };
-            }
-
-            if (!cart.customer || !cart.customer.phone) {
-                logger.warn('No phone number for customer');
-                return { success: false, message: 'No phone number available' };
-            }
-
-            let fullMessage = message;
-            if (incentive) {
-                fullMessage += `\n\n🎉 Special Offer: ${incentive.description}`;
-                fullMessage += `\nUse code: ${incentive.code}`;
-                fullMessage += `\nExpires: ${incentive.expiresAt.toLocaleString()}`;
-            }
-
-            const messageData = {
-                body: fullMessage,
-                from: platform === 'whatsapp' 
-                    ? `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`
-                    : process.env.TWILIO_PHONE_NUMBER,
-                to: platform === 'whatsapp'
-                    ? `whatsapp:${cart.customer.phone}`
-                    : cart.customer.phone
-            };
-
-            const twilioResponse = await this.twilioClient.messages.create(messageData);
-
-            // Log the recovery attempt
-            await prisma.abandonedCart.create({
-                data: {
-                    cartId: cart.id,
-                    customerId: cart.customerId,
-                    storeId: cart.storeId,
-                    message: fullMessage,
-                    incentive: incentive,
-                    platform,
-                    status: 'SENT',
-                    twilioMessageId: twilioResponse.sid,
-                    sentAt: new Date()
+            // Parse the response
+            try {
+                const messages = JSON.parse(response)
+                return messages
+            } catch (parseError) {
+                // Fallback if AI response isn't valid JSON
+                return {
+                    urgency: `Hi ${cart.customer?.firstName || 'there'}! Your cart with ${itemNames} is waiting. Complete your order now and save 10%!`,
+                    value: `Don't miss out! Get 15% off your ${itemNames} order when you complete your purchase today.`,
+                    social: `Join thousands of happy customers! Complete your ${itemNames} order and see why everyone loves our products.`
                 }
-            });
-
-            logger.info(`Recovery message sent via ${platform}: ${twilioResponse.sid}`);
-            return { success: true, messageId: twilioResponse.sid };
+            }
         } catch (error) {
-            logger.error('Error sending recovery message:', error);
-            throw error;
+            console.error('Error generating recovery message:', error)
+            throw error
         }
     }
 
-    // Process abandoned cart recovery
-    async processAbandonedCart(cart, options = {}) {
+    /**
+     * Send recovery message via multiple channels
+     */
+    async sendRecoveryMessage(cart, messageType = 'urgency', channel = 'all') {
         try {
-            // Generate recovery message
-            const recoveryMessage = await this.generateRecoveryMessage(cart, options);
-            
-            // Generate incentive
-            const incentive = await this.generateIncentive(cart, options);
-            
-            // Send message
-            const result = await this.sendRecoveryMessage(
-                cart, 
-                recoveryMessage.message, 
-                incentive, 
-                options.platform || 'whatsapp'
-            );
+            const messages = await this.generateRecoveryMessage(cart)
+            const message = messages[messageType] || messages.urgency
 
-            return {
-                success: result.success,
-                recoveryMessage,
-                incentive,
-                messageId: result.messageId
-            };
+            const results = {
+                success: false,
+                channels: {},
+                errors: []
+            }
+
+            // Send via WhatsApp if customer has phone
+            if ((channel === 'all' || channel === 'whatsapp') && cart.customer && cart.customer.phone) {
+                try {
+                    const whatsappResult = await this.twilioService.sendWhatsApp(
+                        cart.customer.phone,
+                        message
+                    )
+                    results.channels.whatsapp = {
+                        success: true,
+                        messageId: whatsappResult.sid
+                    }
+                } catch (error) {
+                    results.channels.whatsapp = {
+                        success: false,
+                        error: error.message
+                    }
+                    results.errors.push(`WhatsApp: ${error.message}`)
+                }
+            }
+
+            // Send via SMS if customer has phone
+            if ((channel === 'all' || channel === 'sms') && cart.customer && cart.customer.phone) {
+                try {
+                    const smsResult = await this.twilioService.sendSMS(
+                        cart.customer.phone,
+                        message
+                    )
+                    results.channels.sms = {
+                        success: true,
+                        messageId: smsResult.sid
+                    }
+                } catch (error) {
+                    results.channels.sms = {
+                        success: false,
+                        error: error.message
+                    }
+                    results.errors.push(`SMS: ${error.message}`)
+                }
+            }
+
+            // Send via Email if customer has email
+            if ((channel === 'all' || channel === 'email') && cart.customer && cart.customer.email) {
+                try {
+                    const emailResult = await this.sendGridService.sendRecoveryEmail(
+                        cart.customer.email,
+                        cart.customer.firstName || 'Valued Customer',
+                        message,
+                        cart
+                    )
+                    results.channels.email = {
+                        success: true,
+                        messageId: emailResult.messageId
+                    }
+                } catch (error) {
+                    results.channels.email = {
+                        success: false,
+                        error: error.message
+                    }
+                    results.errors.push(`Email: ${error.message}`)
+                }
+            }
+
+            // Track the recovery attempt
+            await this.trackRecoveryAttempt(cart.orderId, {
+                messageType,
+                channel,
+                message,
+                results
+            })
+
+            // Check if any channel succeeded
+            results.success = Object.values(results.channels).some(ch => ch.success)
+
+            return results
         } catch (error) {
-            logger.error('Error processing abandoned cart:', error);
-            throw error;
+            console.error('Error sending recovery message:', error)
+            throw error
         }
     }
 
-    // Get recovery statistics
+    /**
+     * Track recovery attempts and results
+     */
+    async trackRecoveryAttempt(orderId, attemptData) {
+        try {
+            await prisma.event.create({
+                data: {
+                    workspaceId: 'recovery-tracking', // You'll need to get the actual workspace ID
+                    type: 'cart_recovery_attempt',
+                    payload: {
+                        orderId,
+                        timestamp: new Date().toISOString(),
+                        ...attemptData
+                    }
+                }
+            })
+        } catch (error) {
+            console.error('Error tracking recovery attempt:', error)
+        }
+    }
+
+    /**
+     * Get recovery statistics for a store
+     */
     async getRecoveryStats(storeId, days = 30) {
         try {
-            const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-            
-            const stats = await prisma.abandonedCart.groupBy({
-                by: ['status'],
+            const startDate = new Date(Date.now() - (days * 24 * 60 * 60 * 1000))
+
+            const stats = await prisma.event.groupBy({
+                by: ['type'],
                 where: {
-                    storeId,
-                    sentAt: {
+                    type: {
+                        startsWith: 'cart_recovery'
+                    },
+                    ts: {
                         gte: startDate
                     }
                 },
                 _count: {
                     id: true
                 }
-            });
-
-            const totalSent = stats.reduce((sum, stat) => sum + stat._count.id, 0);
-            const recoveredStat = stats.find(s => s.status === 'RECOVERED');
-        const totalRecovered = recoveredStat && recoveredStat._count.id || 0;
-            const recoveryRate = totalSent > 0 ? (totalRecovered / totalSent) * 100 : 0;
+            })
 
             return {
-                totalSent,
-                totalRecovered,
-                recoveryRate: Math.round(recoveryRate * 100) / 100,
-                breakdown: stats
-            };
+                totalAttempts: stats.find(s => s.type === 'cart_recovery_attempt') ? stats.find(s => s.type === 'cart_recovery_attempt')._count.id : 0,
+                successfulDeliveries: stats.find(s => s.type === 'cart_recovery_success') ? stats.find(s => s.type === 'cart_recovery_success')._count.id : 0,
+                conversions: stats.find(s => s.type === 'cart_recovery_conversion') ? stats.find(s => s.type === 'cart_recovery_conversion')._count.id : 0,
+                period: `${days} days`
+            }
         } catch (error) {
-            logger.error('Error getting recovery stats:', error);
-            throw error;
+            console.error('Error getting recovery stats:', error)
+            throw error
         }
     }
 
-    // Mark cart as recovered
-    async markCartRecovered(cartId, orderId = null) {
+    /**
+     * Run automated recovery campaign
+     */
+    async runRecoveryCampaign(storeId, options = {}) {
         try {
-            await prisma.abandonedCart.updateMany({
-                where: { cartId },
-                data: {
-                    status: 'RECOVERED',
-                    recoveredAt: new Date(),
-                    orderId
+            const {
+                hoursThreshold = 24,
+                    maxAttempts = 3,
+                    channels = ['whatsapp', 'email'],
+                    messageTypes = ['urgency', 'value', 'social']
+            } = options
+
+            console.log(`Starting recovery campaign for store: ${storeId}`)
+
+            // Detect abandoned carts
+            const abandonedCarts = await this.detectAbandonedCarts(storeId, hoursThreshold)
+            console.log(`Found ${abandonedCarts.length} abandoned carts`)
+
+            const results = {
+                totalCarts: abandonedCarts.length,
+                messagesSent: 0,
+                successfulDeliveries: 0,
+                errors: []
+            }
+
+            for (const cart of abandonedCarts) {
+                try {
+                    // Determine which message type to use based on attempt number
+                    const attemptNumber = cart.recoveryAttempts + 1
+                    const messageType = messageTypes[(attemptNumber - 1) % messageTypes.length]
+
+                    // Send recovery message
+                    const sendResult = await this.sendRecoveryMessage(
+                        cart,
+                        messageType,
+                        channels.join(',')
+                    )
+
+                    results.messagesSent++
+                        if (sendResult.success) {
+                            results.successfulDeliveries++
+                        }
+                    if (sendResult.errors.length > 0) {
+                        results.errors.push(...sendResult.errors)
+                    }
+
+                    // Update recovery attempts count
+                    cart.recoveryAttempts = attemptNumber
+
+                } catch (error) {
+                    results.errors.push(`Cart ${cart.orderId}: ${error.message}`)
                 }
-            });
+            }
 
-            // Update cart status
-            await prisma.cart.update({
-                where: { id: cartId },
-                data: { status: 'RECOVERED' }
-            });
+            console.log(`Recovery campaign completed:`, results)
+            return results
 
-            logger.info(`Cart ${cartId} marked as recovered`);
         } catch (error) {
-            logger.error('Error marking cart as recovered:', error);
-            throw error;
+            console.error('Error running recovery campaign:', error)
+            throw error
         }
     }
 }
 
-export const cartRecoveryService = new CartRecoveryService();
+export const cartRecoveryService = new CartRecoveryService()

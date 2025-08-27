@@ -1,227 +1,331 @@
-import express from 'express';
-import { adCreativeOptimizerService } from '../services/adCreativeOptimizerService.js';
-import { prisma } from '../db.js';
-import { logger } from '../utils/logger.js';
+import express from 'express'
+import { adCreativeService } from '../services/adCreativeService.js'
+import { prisma } from '../db.js'
 
-const router = express.Router();
+const router = express.Router()
 
-// Ingest performance data from Meta Ads API
-router.post('/ingest-performance/:adAccountId', async(req, res) => {
+/**
+ * @route GET /api/ad-creatives/test
+ * @desc Test endpoint for ad creatives
+ */
+router.get('/test', async(req, res) => {
+    res.json({
+        success: true,
+        message: 'Ad Creative Auto-Optimizer API is working!',
+        endpoints: {
+            'POST /generate': 'Generate AI ad creative',
+            'POST /ab-test': 'Create A/B test',
+            'POST /:id/track': 'Track performance metrics',
+            'POST /optimize': 'Optimize creatives',
+            'GET /analytics': 'Get performance analytics',
+            'GET /platforms': 'Get supported platforms',
+            'GET /:id': 'Get creative details',
+            'PUT /:id': 'Update creative',
+            'DELETE /:id': 'Delete creative',
+            'GET /': 'List all creatives'
+        }
+    })
+})
+
+/**
+ * @route POST /api/ad-creatives/generate
+ * @desc Generate AI-powered ad creative for a product
+ */
+router.post('/generate', async(req, res) => {
     try {
-        const { adAccountId } = req.params;
-        const { dateRange = 'last_30d' } = req.body;
+        const { product, platform = 'meta', options = {} } = req.body
 
-        const performanceData = await adCreativeOptimizerService.ingestPerformanceData(adAccountId, dateRange);
+        if (!product) {
+            return res.status(400).json({ error: 'Product data is required' })
+        }
+
+        const result = await adCreativeService.generateAdCreative(product, platform, options)
 
         res.json({
             success: true,
-            data: {
-                ingestedRecords: performanceData.length,
-                adAccountId,
-                dateRange
-            }
-        });
+            data: result
+        })
     } catch (error) {
-        logger.error('Error ingesting performance data:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to ingest performance data'
-        });
+        console.error('Error generating ad creative:', error)
+        res.status(500).json({ error: 'Failed to generate ad creative' })
     }
-});
+})
 
-// Optimize ad creative using multi-armed bandit
-router.post('/optimize/:adSetId', async(req, res) => {
+/**
+ * @route POST /api/ad-creatives/ab-test
+ * @desc Create A/B test for ad creatives
+ */
+router.post('/ab-test', async(req, res) => {
     try {
-        const { adSetId } = req.params;
-        const { explorationRate = 0.2, learningRate = 0.1 } = req.body;
+        const { creatives, options = {} } = req.body
 
-        const optimizationResult = await adCreativeOptimizerService.optimizeAdCreative(adSetId, {
-            explorationRate,
-            learningRate
-        });
+        if (!creatives || !Array.isArray(creatives) || creatives.length < 2) {
+            return res.status(400).json({ error: 'At least 2 creatives are required for A/B testing' })
+        }
+
+        const result = await adCreativeService.createABTest(creatives, options)
 
         res.json({
             success: true,
-            data: optimizationResult
-        });
+            data: result
+        })
     } catch (error) {
-        logger.error('Error optimizing ad creative:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to optimize ad creative'
-        });
+        console.error('Error creating A/B test:', error)
+        res.status(500).json({ error: 'Failed to create A/B test' })
     }
-});
+})
 
-// Generate new ad variation
-router.post('/generate-variation/:adSetId', async(req, res) => {
+/**
+ * @route POST /api/ad-creatives/:creativeId/track
+ * @desc Track ad performance metrics
+ */
+router.post('/:creativeId/track', async(req, res) => {
     try {
-        const { adSetId } = req.params;
-        const { mode = 'exploration' } = req.body;
+        const { creativeId } = req.params
+        const metrics = req.body
 
-        const variation = await adCreativeOptimizerService.generateNewAdVariation(adSetId, mode);
+        if (!metrics) {
+            return res.status(400).json({ error: 'Performance metrics are required' })
+        }
+
+        const result = await adCreativeService.trackPerformance(creativeId, metrics)
 
         res.json({
             success: true,
-            data: variation
-        });
+            data: result
+        })
     } catch (error) {
-        logger.error('Error generating ad variation:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to generate ad variation'
-        });
+        console.error('Error tracking performance:', error)
+        res.status(500).json({ error: 'Failed to track performance' })
     }
-});
+})
 
-// Setup A/B test
-router.post('/setup-ab-test/:adSetId', async(req, res) => {
+/**
+ * @route POST /api/ad-creatives/optimize
+ * @desc Optimize creatives based on performance data
+ */
+router.post('/optimize', async(req, res) => {
     try {
-        const { adSetId } = req.params;
-        const { testName, duration, budget, metrics } = req.body;
+        const { storeId, platform = 'meta' } = req.body
 
-        const abTest = await adCreativeOptimizerService.setupABTest(adSetId, {
-            testName,
-            duration,
-            budget,
-            metrics
-        });
+        if (!storeId) {
+            return res.status(400).json({ error: 'Store ID is required' })
+        }
+
+        const result = await adCreativeService.optimizeCreatives(storeId, platform)
 
         res.json({
             success: true,
-            data: abTest
-        });
+            data: result
+        })
     } catch (error) {
-        logger.error('Error setting up A/B test:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to setup A/B test'
-        });
+        console.error('Error optimizing creatives:', error)
+        res.status(500).json({ error: 'Failed to optimize creatives' })
     }
-});
+})
 
-// Get optimization recommendations
-router.get('/recommendations/:adSetId', async(req, res) => {
+/**
+ * @route GET /api/ad-creatives/analytics
+ * @desc Get creative performance analytics
+ */
+router.get('/analytics', async(req, res) => {
     try {
-        const { adSetId } = req.params;
+        const { storeId, platform = 'meta', days = 30 } = req.query
 
-        const recommendations = await adCreativeOptimizerService.getOptimizationRecommendations(adSetId);
+        if (!storeId) {
+            return res.status(400).json({ error: 'Store ID is required' })
+        }
+
+        const analytics = await adCreativeService.getCreativeAnalytics(storeId, platform, parseInt(days))
 
         res.json({
             success: true,
-            data: recommendations
-        });
+            data: analytics
+        })
     } catch (error) {
-        logger.error('Error getting optimization recommendations:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get optimization recommendations'
-        });
+        console.error('Error getting analytics:', error)
+        res.status(500).json({ error: 'Failed to get analytics' })
     }
-});
+})
 
-// Get performance data for ad set
-router.get('/performance/:adSetId', async(req, res) => {
+/**
+ * @route GET /api/ad-creatives/platforms
+ * @desc Get supported advertising platforms
+ */
+router.get('/platforms', async(req, res) => {
     try {
-        const { adSetId } = req.params;
-        const { days = 30 } = req.query;
-
-        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-        const performanceData = await prisma.adPerformance.findMany({
-            where: {
-                adName: {
-                    contains: adSetId
-                },
-                recordedAt: {
-                    gte: startDate
+        const platforms = {
+            meta: {
+                name: 'Meta (Facebook & Instagram)',
+                features: ['Image ads', 'Video ads', 'Carousel ads', 'Stories ads'],
+                guidelines: {
+                    headline: '125 characters max',
+                    description: '2-3 sentences',
+                    cta: 'Call-to-action button'
                 }
             },
-            orderBy: {
-                recordedAt: 'desc'
+            tiktok: {
+                name: 'TikTok Ads',
+                features: ['In-feed ads', 'TopView ads', 'Branded hashtag challenges'],
+                guidelines: {
+                    headline: '150 characters max',
+                    description: 'Engaging, trend-focused copy',
+                    cta: 'Action-oriented CTA'
+                }
+            },
+            google: {
+                name: 'Google Ads',
+                features: ['Search ads', 'Display ads', 'Shopping ads', 'Video ads'],
+                guidelines: {
+                    headline: '30 characters max',
+                    description: '90 characters max',
+                    cta: 'Call-to-action text'
+                }
+            },
+            pinterest: {
+                name: 'Pinterest Ads',
+                features: ['Promoted pins', 'Shopping ads', 'Video ads'],
+                guidelines: {
+                    headline: '100 characters max',
+                    description: '500 characters max',
+                    cta: 'Action text'
+                }
             }
-        });
+        }
 
         res.json({
             success: true,
-            data: {
-                performanceData,
-                totalRecords: performanceData.length,
-                dateRange: `${days} days`
-            }
-        });
+            data: platforms
+        })
     } catch (error) {
-        logger.error('Error getting performance data:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get performance data'
-        });
+        console.error('Error getting platforms:', error)
+        res.status(500).json({ error: 'Failed to get platforms' })
     }
-});
+})
 
-// Get all ad creatives for ad set
-router.get('/creatives/:adSetId', async(req, res) => {
+/**
+ * @route GET /api/ad-creatives/:creativeId
+ * @desc Get specific ad creative details
+ */
+router.get('/:creativeId', async(req, res) => {
     try {
-        const { adSetId } = req.params;
+        const { creativeId } = req.params
+
+        const creative = await prisma.adCreative.findUnique({
+            where: { id: creativeId },
+            include: {
+                launch: true
+            }
+        })
+
+        if (!creative) {
+            return res.status(404).json({ error: 'Ad creative not found' })
+        }
+
+        res.json({
+            success: true,
+            data: creative
+        })
+    } catch (error) {
+        console.error('Error getting creative:', error)
+        res.status(500).json({ error: 'Failed to get creative' })
+    }
+})
+
+/**
+ * @route PUT /api/ad-creatives/:creativeId
+ * @desc Update ad creative
+ */
+router.put('/:creativeId', async(req, res) => {
+    try {
+        const { creativeId } = req.params
+        const updates = req.body
+
+        const creative = await prisma.adCreative.update({
+            where: { id: creativeId },
+            data: {
+                inputs: updates.inputs || {},
+                outputs: updates.outputs || {},
+                status: updates.status || 'DRAFT',
+                updatedAt: new Date()
+            }
+        })
+
+        res.json({
+            success: true,
+            data: creative
+        })
+    } catch (error) {
+        console.error('Error updating creative:', error)
+        res.status(500).json({ error: 'Failed to update creative' })
+    }
+})
+
+/**
+ * @route DELETE /api/ad-creatives/:creativeId
+ * @desc Delete ad creative
+ */
+router.delete('/:creativeId', async(req, res) => {
+    try {
+        const { creativeId } = req.params
+
+        await prisma.adCreative.delete({
+            where: { id: creativeId }
+        })
+
+        res.json({
+            success: true,
+            message: 'Ad creative deleted successfully'
+        })
+    } catch (error) {
+        console.error('Error deleting creative:', error)
+        res.status(500).json({ error: 'Failed to delete creative' })
+    }
+})
+
+/**
+ * @route GET /api/ad-creatives
+ * @desc Get all ad creatives for a store
+ */
+router.get('/', async(req, res) => {
+    try {
+        const { storeId, platform, status, limit = 20, offset = 0 } = req.query
+
+        const where = {}
+        if (storeId) where.launch = { workspace: { stores: { some: { id: storeId } } } }
+        if (platform) where.platform = platform
+        if (status) where.status = status
 
         const creatives = await prisma.adCreative.findMany({
-            where: {
-                adSetId
+            where,
+            include: {
+                launch: true
             },
             orderBy: {
-                generatedAt: 'desc'
-            }
-        });
+                createdAt: 'desc'
+            },
+            take: parseInt(limit),
+            skip: parseInt(offset)
+        })
+
+        const total = await prisma.adCreative.count({ where })
 
         res.json({
             success: true,
             data: {
                 creatives,
-                totalCreatives: creatives.length
+                pagination: {
+                    total,
+                    limit: parseInt(limit),
+                    offset: parseInt(offset),
+                    hasMore: total > parseInt(offset) + parseInt(limit)
+                }
             }
-        });
+        })
     } catch (error) {
-        logger.error('Error getting ad creatives:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get ad creatives'
-        });
+        console.error('Error getting creatives:', error)
+        res.status(500).json({ error: 'Failed to get creatives' })
     }
-});
+})
 
-// Get A/B test results
-router.get('/ab-tests/:adSetId', async(req, res) => {
-    try {
-        const { adSetId } = req.params;
-
-        const abTests = await prisma.abTest.findMany({
-            where: {
-                adSetId
-            },
-            include: {
-                variationA: true,
-                variationB: true
-            },
-            orderBy: {
-                startDate: 'desc'
-            }
-        });
-
-        res.json({
-            success: true,
-            data: {
-                abTests,
-                totalTests: abTests.length
-            }
-        });
-    } catch (error) {
-        logger.error('Error getting A/B tests:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get A/B tests'
-        });
-    }
-});
-
-export default router;
+export default router
