@@ -75,6 +75,7 @@ model Workspace {
   subscriptions Subscription[]
   usage       Usage[]
   auditLogs   AuditLog[]
+  shopifyConnections ShopifyConnection[]
 
   @@map("workspaces")
 }
@@ -117,8 +118,35 @@ model Store {
   customers   Customer[]
   orders      Order[]
   carts       Cart[]
+  shopifyConnection ShopifyConnection?
 
   @@map("stores")
+}
+
+model ShopifyConnection {
+  id          String   @id @default(cuid())
+  workspaceId String
+  storeId     String?  @unique // Optional link to Store model
+  shop        String   // Shopify shop domain (e.g., "my-store.myshopify.com")
+  accessToken String   // OAuth access token
+  scope       String   // OAuth scopes granted
+  shopifyId   String?  // Shopify shop ID
+  shopName    String?  // Shop name from Shopify
+  email       String?  // Shop owner email
+  country     String?  // Shop country
+  currency    String?  // Shop currency
+  timezone    String?  // Shop timezone
+  status      ShopifyConnectionStatus @default(ACTIVE)
+  expiresAt   DateTime? // Token expiration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  store       Store?    @relation(fields: [storeId], references: [id])
+
+  @@unique([workspaceId, shop])
+  @@map("shopify_connections")
 }
 
 model Product {
@@ -538,4 +566,11 @@ enum SubscriptionStatus {
   PAST_DUE
   CANCELLED
   UNPAID
+}
+
+enum ShopifyConnectionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  ERROR
 }

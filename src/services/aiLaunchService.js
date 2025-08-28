@@ -129,7 +129,8 @@ Make it compelling and conversion-focused.
         const response = await aiService.generateText(prompt, {
             model: 'mistralai/Mistral-7B-Instruct-v0.1',
             maxTokens: 500,
-            temperature: 0.7
+            temperature: 0.7,
+            provider: 'togetherai'
         });
 
         return {
@@ -174,7 +175,8 @@ Make it compelling and drive conversions.
         const response = await aiService.generateText(prompt, {
             model: 'mistralai/Mistral-7B-Instruct-v0.1',
             maxTokens: 800,
-            temperature: 0.7
+            temperature: 0.7,
+            provider: 'togetherai'
         });
 
         return {
@@ -222,7 +224,8 @@ Make it conversion-optimized and compelling.
         const response = await aiService.generateText(prompt, {
             model: 'mistralai/Mistral-7B-Instruct-v0.1',
             maxTokens: 1000,
-            temperature: 0.7
+            temperature: 0.7,
+            provider: 'togetherai'
         });
 
         return {
@@ -272,7 +275,8 @@ Make it compelling and conversion-focused.
         const response = await aiService.generateText(prompt, {
             model: 'mistralai/Mistral-7B-Instruct-v0.1',
             maxTokens: 600,
-            temperature: 0.7
+            temperature: 0.7,
+            provider: 'togetherai'
         });
 
         return {
@@ -320,7 +324,8 @@ Make it compelling, SEO-friendly, and conversion-focused.
         const response = await aiService.generateText(prompt, {
             model: 'mistralai/Mistral-7B-Instruct-v0.1',
             maxTokens: 800,
-            temperature: 0.7
+            temperature: 0.7,
+            provider: 'togetherai'
         });
 
         return {

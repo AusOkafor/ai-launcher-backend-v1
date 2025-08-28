@@ -11,6 +11,203 @@ router.get('/test', (req, res) => {
 });
 
 // ========================================
+// OAUTH ROUTES
+// ========================================
+
+// Initiate OAuth flow
+router.get('/oauth/authorize', async(req, res) => {
+    try {
+        const { shop } = req.query;
+
+        if (!shop) {
+            return res.status(400).json({
+                success: false,
+                error: 'Shop parameter is required'
+            });
+        }
+
+        // Validate shop domain format
+        if (!shop.includes('.myshopify.com')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid shop domain. Must be in format: your-store.myshopify.com'
+            });
+        }
+
+        const clientId = process.env.SHOPIFY_CLIENT_ID;
+        const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
+        const scopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers';
+
+        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
+
+        logger.info(`Redirecting to Shopify OAuth: ${authUrl}`);
+
+        res.redirect(authUrl);
+    } catch (error) {
+        logger.error('Error initiating OAuth:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to initiate OAuth flow'
+        });
+    }
+});
+
+// OAuth callback
+router.get('/oauth/callback', async(req, res) => {
+    try {
+        const { code, shop, state } = req.query;
+
+        if (!code || !shop) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required OAuth parameters'
+            });
+        }
+
+        logger.info(`OAuth callback received for shop: ${shop}`);
+
+        // Exchange code for access token
+        const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                client_id: process.env.SHOPIFY_CLIENT_ID,
+                client_secret: process.env.SHOPIFY_CLIENT_SECRET,
+                code: code
+            })
+        });
+
+        if (!tokenResponse.ok) {
+            throw new Error(`Failed to exchange code for token: ${tokenResponse.statusText}`);
+        }
+
+        const tokenData = await tokenResponse.json();
+        const { access_token, scope } = tokenData;
+
+        // Get shop information
+        const shopResponse = await fetch(`https://${shop}/admin/api/2023-10/shop.json`, {
+            headers: {
+                'X-Shopify-Access-Token': access_token,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!shopResponse.ok) {
+            throw new Error(`Failed to get shop info: ${shopResponse.statusText}`);
+        }
+
+        const shopData = await shopResponse.json();
+        const shopInfo = shopData.shop;
+
+        // For now, use a default workspace ID (you'll need to handle this properly)
+        const workspaceId = 'test-workspace-id';
+
+        // Create or update Shopify connection
+        const connection = await prisma.shopifyConnection.upsert({
+            where: {
+                workspaceId_shop: {
+                    workspaceId,
+                    shop
+                }
+            },
+            update: {
+                accessToken: access_token,
+                scope,
+                shopifyId: shopInfo.id.toString(),
+                shopName: shopInfo.name,
+                email: shopInfo.email,
+                country: shopInfo.country,
+                currency: shopInfo.currency,
+                timezone: shopInfo.timezone,
+                status: 'ACTIVE',
+                updatedAt: new Date()
+            },
+            create: {
+                workspaceId,
+                shop,
+                accessToken: access_token,
+                scope,
+                shopifyId: shopInfo.id.toString(),
+                shopName: shopInfo.name,
+                email: shopInfo.email,
+                country: shopInfo.country,
+                currency: shopInfo.currency,
+                timezone: shopInfo.timezone,
+                status: 'ACTIVE'
+            }
+        });
+
+        logger.info(`Shopify connection created/updated: ${connection.id}`);
+
+        // Redirect to frontend with success
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        res.redirect(`${frontendUrl}/settings?shopify=success&shop=${shop}`);
+
+    } catch (error) {
+        logger.error('Error in OAuth callback:', error);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        res.redirect(`${frontendUrl}/settings?shopify=error&message=${encodeURIComponent(error.message)}`);
+    }
+});
+
+// Get Shopify connections for a workspace
+router.get('/connections', async(req, res) => {
+    try {
+        const workspaceId = req.query.workspaceId || 'test-workspace-id';
+
+        const connections = await prisma.shopifyConnection.findMany({
+            where: { workspaceId },
+            select: {
+                id: true,
+                shop: true,
+                shopName: true,
+                email: true,
+                country: true,
+                currency: true,
+                status: true,
+                createdAt: true,
+                updatedAt: true
+            }
+        });
+
+        res.json({
+            success: true,
+            connections
+        });
+    } catch (error) {
+        logger.error('Error getting connections:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Disconnect Shopify connection
+router.delete('/connections/:id', async(req, res) => {
+    try {
+        const { id } = req.params;
+
+        await prisma.shopifyConnection.delete({
+            where: { id }
+        });
+
+        res.json({
+            success: true,
+            message: 'Connection disconnected successfully'
+        });
+    } catch (error) {
+        logger.error('Error disconnecting:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// ========================================
 // WEBHOOK HANDLERS (Real-time sync)
 // ========================================
 

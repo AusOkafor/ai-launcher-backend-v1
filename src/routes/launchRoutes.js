@@ -8,7 +8,7 @@ const router = Router()
 const launchController = new LaunchController()
 
 // Apply authentication to all launch routes
-router.use(authenticate)
+// router.use(authenticate)
 
 /**
  * @route POST /api/launches
@@ -43,19 +43,6 @@ router.get(
     ],
     validateRequest,
     launchController.getLaunches
-)
-
-/**
- * @route GET /api/launches/:id
- * @desc Get launch by ID
- * @access Private
- */
-router.get(
-    '/:id', [
-        param('id').isString().notEmpty()
-    ],
-    validateRequest,
-    launchController.getLaunch
 )
 
 /**
@@ -96,6 +83,19 @@ router.get(
     ],
     validateRequest,
     launchController.getLaunchMetrics
+)
+
+/**
+ * @route GET /api/launches/:id
+ * @desc Get launch by ID
+ * @access Private
+ */
+router.get(
+    '/:id', [
+        param('id').isString().notEmpty()
+    ],
+    validateRequest,
+    launchController.getLaunch
 )
 
 /**

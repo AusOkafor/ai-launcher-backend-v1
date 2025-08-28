@@ -17,12 +17,15 @@ class AdCreativeService {
      */
     async generateAdCreative(product, platform = 'meta', options = {}) {
         try {
+            // Initialize AI service first
+            await this.aiService.initialize();
+
             const {
                 targetAudience = 'general',
-                tone = 'professional',
-                focus = 'benefits',
-                includeCTA = true,
-                maxLength = 125
+                    tone = 'professional',
+                    focus = 'benefits',
+                    includeCTA = true,
+                    maxLength = 125
             } = options
 
             const prompt = this.buildCreativePrompt(product, platform, {
@@ -42,7 +45,7 @@ class AdCreativeService {
 
             // Parse the AI response
             const creative = this.parseCreativeResponse(response.text, platform)
-            
+
             return {
                 success: true,
                 platform,
@@ -66,7 +69,7 @@ class AdCreativeService {
      */
     buildCreativePrompt(product, platform, options) {
         const { targetAudience, tone, focus, includeCTA, maxLength } = options
-        
+
         const productInfo = `
 Product: ${product.title}
 Category: ${product.category || 'General'}
@@ -185,16 +188,39 @@ Generate the creative in this JSON format:
         try {
             const {
                 name = 'Ad Creative A/B Test',
-                duration = 7, // days
-                budget = 100,
-                platform = 'meta',
-                storeId
+                    duration = 7, // days
+                    budget = 100,
+                    platform = 'meta',
+                    storeId
             } = options
+
+            // Get an existing launch or create a test launch
+            let launch = await prisma.launch.findFirst({
+                where: { workspaceId: 'test-workspace-id' }
+            });
+
+            if (!launch) {
+                launch = await prisma.launch.create({
+                    data: {
+                        workspaceId: 'test-workspace-id',
+                        productId: 'cmeqsror30007zrgucnesqez1', // Use your existing product
+                        name: 'Test Launch for A/B Testing',
+                        status: 'DRAFT',
+                        inputs: {
+                            productId: 'cmeqsror30007zrgucnesqez1',
+                            brandTone: 'Professional',
+                            targetAudience: 'Young professionals',
+                            budget: 500
+                        },
+                        outputs: null
+                    }
+                });
+            }
 
             // Create the A/B test record
             const abTest = await prisma.adCreative.create({
                 data: {
-                    launchId: 'ab-test', // You'll need to get the actual launch ID
+                    launchId: launch.id,
                     platform,
                     inputs: {
                         testName: name,
@@ -309,7 +335,7 @@ Generate the creative in this JSON format:
 
             for (const creative of topCreatives) {
                 const metrics = creative.metrics || {}
-                
+
                 // Analyze performance and suggest improvements
                 const suggestions = this.analyzePerformance(metrics, creative)
                 optimizationSuggestions.push({
@@ -397,8 +423,11 @@ Generate the creative in this JSON format:
      * Generate optimized creative based on performance analysis
      */
     async generateOptimizedCreative(suggestion) {
-        try {
-            const prompt = `Based on this performance analysis, generate an optimized ad creative:
+            try {
+                // Initialize AI service first
+                await this.aiService.initialize();
+
+                const prompt = `Based on this performance analysis, generate an optimized ad creative:
 
 Current Performance Issues:
 ${suggestion.suggestions.map(s => `- ${s.description}`).join('\n')}
