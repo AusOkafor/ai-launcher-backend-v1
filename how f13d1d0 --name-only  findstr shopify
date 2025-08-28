@@ -1,0 +1,23 @@
+[33mcommit f13d1d09f5bdaff2c9f22f7d06f288b736bc2a82[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: austin <ausdeveloper2307@gmail.com>
+Date:   Thu Aug 28 16:44:17 2025 -0500
+
+    Add Shopify OAuth integration with database schema and routes
+
+check-products.js
+debug-ai-generation.js
+env.example
+generate-test-token.js
+prisma/schema.prisma
+setup-test-user.js
+src/controllers/LaunchController.js
+src/routes/launchRoutes.js
+src/routes/shopifyRoutes.js
+src/services/adCreativeService.js
+src/services/aiLaunchService.js
+test-ad-creative-api.js
+test-ad-creative.js
+test-ai-launch.js
+test-ai.js
+test-db-connection.js
+test-shopify-oauth.js

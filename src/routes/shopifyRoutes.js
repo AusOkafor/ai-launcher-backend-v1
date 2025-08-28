@@ -5,16 +5,6 @@ import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
-// Test route to verify the router is working
-router.get('/test', (req, res) => {
-    res.json({ message: 'Shopify routes are working! - OAuth routes should be available' });
-});
-
-// Test OAuth route specifically
-router.get('/test-oauth', (req, res) => {
-    res.json({ message: 'OAuth routes are accessible!' });
-});
-
 // ========================================
 // OAUTH ROUTES
 // ========================================
