@@ -10,6 +10,11 @@ router.get('/test', (req, res) => {
     res.json({ message: 'Shopify routes are working!' });
 });
 
+// Test OAuth route specifically
+router.get('/test-oauth', (req, res) => {
+    res.json({ message: 'OAuth routes are accessible!' });
+});
+
 // ========================================
 // OAUTH ROUTES
 // ========================================
