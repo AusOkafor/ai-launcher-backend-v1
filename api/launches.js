@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     try {
         if (req.method === 'GET') {
             console.log('Fetching launches...')
-            
+
             const launches = await prisma.launch.findMany({
                 orderBy: {
                     createdAt: 'desc'
@@ -70,9 +70,9 @@ export default async function handler(req, res) {
         console.error('Error with launches:', error)
         return res.status(500).json({
             success: false,
-            error: { 
+            error: {
                 message: 'Failed to process launches request',
-                details: error.message 
+                details: error.message
             }
         })
     }
