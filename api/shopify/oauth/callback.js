@@ -63,16 +63,40 @@ export default async function handler(req, res) {
 
         console.log('Shop info retrieved:', shopInfo.name);
 
-        // For now, use a default workspace ID
-        const workspaceId = 'test-workspace-id';
+        // Create test user and workspace if they don't exist
+        console.log('Creating test user and workspace...');
+
+        const testUser = await prisma.user.upsert({
+            where: { email: 'test@example.com' },
+            update: {},
+            create: {
+                email: 'test@example.com',
+                passwordHash: 'test-hash',
+                firstName: 'Test',
+                lastName: 'User'
+            }
+        });
+
+        const workspace = await prisma.workspace.upsert({
+            where: { id: 'test-workspace-id' },
+            update: {},
+            create: {
+                id: 'test-workspace-id',
+                name: 'Default Workspace',
+                slug: 'default-workspace',
+                ownerId: testUser.id
+            }
+        });
+
+        console.log('Workspace ready:', workspace.id);
 
         console.log('Attempting to save connection to database...');
 
-        // Create or update Shopify connection using the correct unique constraint
+        // Create or update Shopify connection
         const connection = await prisma.shopifyConnection.upsert({
             where: {
                 workspaceId_shop: {
-                    workspaceId,
+                    workspaceId: workspace.id,
                     shop
                 }
             },
@@ -89,7 +113,7 @@ export default async function handler(req, res) {
                 updatedAt: new Date()
             },
             create: {
-                workspaceId,
+                workspaceId: workspace.id,
                 shop,
                 accessToken: access_token,
                 scope,
