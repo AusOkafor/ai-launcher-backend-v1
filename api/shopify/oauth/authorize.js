@@ -26,6 +26,26 @@ export default async function handler(req, res) {
         const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
         const scopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers';
 
+        // Debug logging
+        console.log('Environment variables:');
+        console.log('SHOPIFY_CLIENT_ID:', clientId);
+        console.log('SHOPIFY_REDIRECT_URI:', redirectUri);
+        console.log('All env vars:', Object.keys(process.env).filter(key => key.includes('SHOPIFY')));
+
+        if (!clientId || clientId === 'undefined') {
+            return res.status(500).json({
+                success: false,
+                error: 'SHOPIFY_CLIENT_ID not configured. Please set it in Vercel environment variables.'
+            });
+        }
+
+        if (!redirectUri || redirectUri === 'undefined') {
+            return res.status(500).json({
+                success: false,
+                error: 'SHOPIFY_REDIRECT_URI not configured. Please set it in Vercel environment variables.'
+            });
+        }
+
         const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
 
         console.log(`Redirecting to Shopify OAuth: ${authUrl}`);
