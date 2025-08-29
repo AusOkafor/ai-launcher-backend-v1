@@ -6,7 +6,7 @@ const router = Router()
 const prisma = new PrismaClient()
 
 // Get all products
-router.get('/', async (req, res) => {
+router.get('/', async(req, res) => {
     try {
         const products = await prisma.product.findMany({
             include: {
@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
 })
 
 // Get product by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', async(req, res) => {
     try {
         const { id } = req.params
 
@@ -59,7 +59,7 @@ router.get('/:id', async (req, res) => {
 })
 
 // Get products by store
-router.get('/store/:storeId', async (req, res) => {
+router.get('/store/:storeId', async(req, res) => {
     try {
         const { storeId } = req.params
 
@@ -86,12 +86,12 @@ router.get('/store/:storeId', async (req, res) => {
 })
 
 // Get products by category
-router.get('/category/:category', async (req, res) => {
+router.get('/category/:category', async(req, res) => {
     try {
         const { category } = req.params
 
         const products = await prisma.product.findMany({
-            where: { 
+            where: {
                 category: {
                     contains: category,
                     mode: 'insensitive'
