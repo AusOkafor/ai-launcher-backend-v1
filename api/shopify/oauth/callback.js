@@ -34,11 +34,15 @@ export default async function handler(req, res) {
         });
 
         if (!tokenResponse.ok) {
+            const errorText = await tokenResponse.text();
+            console.error('Token exchange failed:', errorText);
             throw new Error(`Failed to exchange code for token: ${tokenResponse.statusText}`);
         }
 
         const tokenData = await tokenResponse.json();
         const { access_token, scope } = tokenData;
+
+        console.log('Token exchange successful, getting shop info...');
 
         // Get shop information
         const shopResponse = await fetch(`https://${shop}/admin/api/2023-10/shop.json`, {
@@ -49,16 +53,22 @@ export default async function handler(req, res) {
         });
 
         if (!shopResponse.ok) {
+            const errorText = await shopResponse.text();
+            console.error('Shop info fetch failed:', errorText);
             throw new Error(`Failed to get shop info: ${shopResponse.statusText}`);
         }
 
         const shopData = await shopResponse.json();
         const shopInfo = shopData.shop;
 
+        console.log('Shop info retrieved:', shopInfo.name);
+
         // For now, use a default workspace ID
         const workspaceId = 'test-workspace-id';
 
-        // Create or update Shopify connection
+        console.log('Attempting to save connection to database...');
+
+        // Create or update Shopify connection using the correct unique constraint
         const connection = await prisma.shopifyConnection.upsert({
             where: {
                 workspaceId_shop: {
