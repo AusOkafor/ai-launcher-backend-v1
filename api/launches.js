@@ -17,21 +17,15 @@ export default async function handler(req, res) {
 
     try {
         if (req.method === 'GET') {
+            console.log('Fetching launches...')
+            
             const launches = await prisma.launch.findMany({
-                include: {
-                    product: {
-                        select: {
-                            title: true,
-                            price: true,
-                            images: true
-                        }
-                    },
-                    adCreatives: true
-                },
                 orderBy: {
                     createdAt: 'desc'
                 }
             })
+
+            console.log(`Found ${launches.length} launches`)
 
             return res.status(200).json({
                 success: true,
@@ -58,9 +52,6 @@ export default async function handler(req, res) {
                         platforms,
                         additionalNotes
                     }
-                },
-                include: {
-                    product: true
                 }
             })
 
@@ -79,7 +70,10 @@ export default async function handler(req, res) {
         console.error('Error with launches:', error)
         return res.status(500).json({
             success: false,
-            error: { message: 'Failed to process launches request' }
+            error: { 
+                message: 'Failed to process launches request',
+                details: error.message 
+            }
         })
     }
 }
