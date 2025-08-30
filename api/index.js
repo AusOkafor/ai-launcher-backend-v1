@@ -1,4 +1,4 @@
-// Simplified API with mock data to ensure it works
+// Simplified API with mock data to ensure it works - V2
 // We'll add database back once the routing is confirmed working
 
 const mockLaunches = [
