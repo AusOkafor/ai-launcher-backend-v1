@@ -1,3 +1,15 @@
+import { PrismaClient } from '@prisma/client'
+
+// PrismaClient is attached to the `global` object in development to prevent
+// exhausting your database connection limit.
+const globalForPrisma = globalThis
+
+const prisma = globalForPrisma.prisma || new PrismaClient({
+    log: ['query', 'error', 'warn'],
+})
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+
 export default async function handler(req, res) {
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -12,147 +24,196 @@ export default async function handler(req, res) {
 
     const { pathname } = new URL(req.url, `http://${req.headers.host}`)
 
-    // Health check endpoint
-    if (pathname === '/api/health' && req.method === 'GET') {
-        return res.status(200).json({
-            success: true,
-            status: 'healthy',
-            message: 'API is working'
-        })
-    }
-
-    // Handle products endpoint
-    if (pathname === '/api/products' && req.method === 'GET') {
-        const products = [{
-                id: '1',
-                title: 'Sample Product 1',
-                description: 'A sample product',
-                price: 29.99,
-                category: 'Electronics',
-                brand: 'Sample Brand',
-                images: ['https://via.placeholder.com/300x300?text=Product+1'],
-                store: { name: 'Sample Store', platform: 'SHOPIFY' },
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            },
-            {
-                id: '2',
-                title: 'Sample Product 2',
-                description: 'Another sample product',
-                price: 49.99,
-                category: 'Clothing',
-                brand: 'Fashion Brand',
-                images: ['https://via.placeholder.com/300x300?text=Product+2'],
-                store: { name: 'Sample Store', platform: 'SHOPIFY' },
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+    try {
+        // Health check endpoint
+        if (pathname === '/api/health' && req.method === 'GET') {
+            try {
+                // Test database connection
+                await prisma.$queryRaw `SELECT 1`
+                return res.status(200).json({
+                    success: true,
+                    status: 'healthy',
+                    database: 'connected',
+                    message: 'API is working with real database'
+                })
+            } catch (dbError) {
+                return res.status(503).json({
+                    success: false,
+                    status: 'unhealthy',
+                    database: 'disconnected',
+                    error: dbError.message
+                })
             }
-        ]
+        }
 
-        return res.status(200).json({
-            success: true,
-            data: { products }
-        })
-    }
-
-    // Handle launches endpoint
-    if (pathname === '/api/launches') {
-        if (req.method === 'GET') {
-            const launches = [{
-                    id: '1',
-                    workspaceId: 'test-workspace',
-                    productId: '1',
-                    name: 'Sample Launch 1',
-                    status: 'DRAFT',
-                    inputs: {
-                        productId: '1',
-                        brandTone: 'Professional',
-                        targetAudience: 'General',
-                        budget: 1000,
-                        platforms: ['meta', 'tiktok']
-                    },
-                    outputs: null,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                },
-                {
-                    id: '2',
-                    workspaceId: 'test-workspace',
-                    productId: '2',
-                    name: 'Sample Launch 2',
-                    status: 'COMPLETED',
-                    inputs: {
-                        productId: '2',
-                        brandTone: 'Casual',
-                        targetAudience: 'Young Adults',
-                        budget: 2000,
-                        platforms: ['meta', 'google']
-                    },
-                    outputs: {
-                        title: 'AI-Generated Launch',
-                        content: {
-                            headline: 'Amazing Product!',
-                            postCopy: 'Check out this incredible product!',
-                            hashtags: ['#amazing', '#product'],
-                            callToAction: 'Shop Now!'
+        // Handle products endpoint
+        if (pathname === '/api/products' && req.method === 'GET') {
+            try {
+                const products = await prisma.product.findMany({
+                    include: {
+                        store: {
+                            select: {
+                                name: true,
+                                platform: true
+                            }
                         }
                     },
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                }
-            ]
+                    orderBy: {
+                        createdAt: 'desc'
+                    }
+                })
 
-            return res.status(200).json({
-                success: true,
-                data: { launches }
-            })
+                return res.status(200).json({
+                    success: true,
+                    data: { products }
+                })
+            } catch (error) {
+                console.error('Error fetching products:', error)
+                return res.status(500).json({
+                    success: false,
+                    error: { message: 'Failed to fetch products' }
+                })
+            }
         }
 
-        if (req.method === 'POST') {
-            const { productId, brandTone, targetAudience, budget, platforms } = req.body
+        // Handle launches endpoint
+        if (pathname === '/api/launches') {
+            if (req.method === 'GET') {
+                try {
+                    const launches = await prisma.launch.findMany({
+                        include: {
+                            product: {
+                                select: {
+                                    id: true,
+                                    title: true,
+                                    images: true
+                                }
+                            }
+                        },
+                        orderBy: {
+                            createdAt: 'desc'
+                        }
+                    })
 
-            const newLaunch = {
-                id: `launch-${Date.now()}`,
-                workspaceId: 'test-workspace',
-                productId,
-                name: `Launch for ${productId}`,
-                status: 'DRAFT',
-                inputs: { productId, brandTone, targetAudience, budget, platforms },
-                outputs: null,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                    return res.status(200).json({
+                        success: true,
+                        data: { launches }
+                    })
+                } catch (error) {
+                    console.error('Error fetching launches:', error)
+                    return res.status(500).json({
+                        success: false,
+                        error: { message: 'Failed to fetch launches' }
+                    })
+                }
             }
 
-            return res.status(201).json({
-                success: true,
-                data: { launch: newLaunch }
-            })
+            if (req.method === 'POST') {
+                try {
+                    const { productId, brandTone, targetAudience, budget, platforms, additionalNotes } = req.body
+
+                    // Get or create a default workspace
+                    let workspace = await prisma.workspace.findFirst({
+                        where: { slug: 'default-workspace' }
+                    })
+
+                    if (!workspace) {
+                        workspace = await prisma.workspace.create({
+                            data: {
+                                name: 'Default Workspace',
+                                slug: 'default-workspace',
+                                ownerId: 'default-user'
+                            }
+                        })
+                    }
+
+                    const newLaunch = await prisma.launch.create({
+                        data: {
+                            workspaceId: workspace.id,
+                            productId: productId || null,
+                            name: `Launch for ${productId || 'Product'}`,
+                            status: 'DRAFT',
+                            inputs: {
+                                productId,
+                                brandTone,
+                                targetAudience,
+                                budget,
+                                platforms,
+                                additionalNotes
+                            }
+                        },
+                        include: {
+                            product: {
+                                select: {
+                                    id: true,
+                                    title: true,
+                                    images: true
+                                }
+                            }
+                        }
+                    })
+
+                    return res.status(201).json({
+                        success: true,
+                        data: { launch: newLaunch }
+                    })
+                } catch (error) {
+                    console.error('Error creating launch:', error)
+                    return res.status(500).json({
+                        success: false,
+                        error: { message: 'Failed to create launch' }
+                    })
+                }
+            }
         }
-    }
 
-    // Handle Shopify connections endpoint
-    if (pathname === '/api/shopify/connections' && req.method === 'GET') {
-        const connections = [{
-            id: '1',
-            shop: 'sample-store.myshopify.com',
-            shopName: 'Sample Store',
-            email: 'admin@samplestore.com',
-            country: 'US',
-            currency: 'USD',
-            status: 'ACTIVE',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        }]
+        // Handle Shopify connections endpoint
+        if (pathname === '/api/shopify/connections' && req.method === 'GET') {
+            try {
+                const workspaceId = req.query.workspaceId || 'default-workspace'
 
-        return res.status(200).json({
-            success: true,
-            data: { connections }
+                const connections = await prisma.shopifyConnection.findMany({
+                    where: { workspaceId },
+                    select: {
+                        id: true,
+                        shop: true,
+                        shopName: true,
+                        email: true,
+                        country: true,
+                        currency: true,
+                        status: true,
+                        createdAt: true,
+                        updatedAt: true
+                    }
+                })
+
+                return res.status(200).json({
+                    success: true,
+                    data: { connections }
+                })
+            } catch (error) {
+                console.error('Error fetching Shopify connections:', error)
+                return res.status(500).json({
+                    success: false,
+                    error: { message: 'Failed to fetch Shopify connections' }
+                })
+            }
+        }
+
+        // Default response for unmatched routes
+        return res.status(404).json({
+            success: false,
+            error: { message: 'Route not found' }
+        })
+
+    } catch (error) {
+        console.error('API error:', error)
+        return res.status(500).json({
+            success: false,
+            error: {
+                message: 'Internal server error',
+                details: error.message
+            }
         })
     }
-
-    // Default response for unmatched routes
-    return res.status(404).json({
-        success: false,
-        error: { message: 'Route not found' }
-    })
 }
