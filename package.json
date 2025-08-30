@@ -21,7 +21,9 @@
 
         "docker:up": "docker-compose up -d",
         "docker:down": "docker-compose down",
-        "docker:logs": "docker-compose logs -f"
+        "docker:logs": "docker-compose logs -f",
+        "setup:db": "node setup-database.js",
+        "test:api": "node test-api.js"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.9.1",
