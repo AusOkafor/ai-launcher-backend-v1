@@ -39,7 +39,7 @@ export default async function handler(req, res) {
         // Health check endpoint
         if (pathname === '/api/health' && req.method === 'GET') {
             try {
-                await prisma.$queryRaw`SELECT 1`
+                await prisma.$queryRaw `SELECT 1`
                 return res.status(200).json({
                     success: true,
                     status: 'healthy',
