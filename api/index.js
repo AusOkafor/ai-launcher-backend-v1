@@ -1,16 +1,21 @@
 import { PrismaClient } from '@prisma/client'
 
-// Serverless-optimized Prisma client with connection pooling fix
+// Serverless-optimized Prisma client with direct connection
 let prisma
 
 // Create a new Prisma client for each request to avoid connection pooling issues
 function getPrismaClient() {
     if (!prisma) {
+        // Force direct connection for serverless environments
+        const databaseUrl = process.env.DATABASE_URL.includes('?') ?
+            `${process.env.DATABASE_URL}&pgbouncer=true&connection_limit=1&pool_timeout=0` :
+            `${process.env.DATABASE_URL}?pgbouncer=true&connection_limit=1&pool_timeout=0`
+
         prisma = new PrismaClient({
             log: ['error'],
             datasources: {
                 db: {
-                    url: process.env.DATABASE_URL
+                    url: databaseUrl
                 }
             }
         })
