@@ -1,14 +1,22 @@
 import { PrismaClient } from '@prisma/client'
 
-// Simple Prisma client for serverless - avoid connection pooling issues
-const prisma = new PrismaClient({
-    log: ['error'],
-    datasources: {
-        db: {
-            url: process.env.DATABASE_URL
-        }
+// Serverless-optimized Prisma client with connection pooling fix
+let prisma
+
+// Create a new Prisma client for each request to avoid connection pooling issues
+function getPrismaClient() {
+    if (!prisma) {
+        prisma = new PrismaClient({
+            log: ['error'],
+            datasources: {
+                db: {
+                    url: process.env.DATABASE_URL
+                }
+            }
+        })
     }
-})
+    return prisma
+}
 
 export default async function handler(req, res) {
     // Set CORS headers
@@ -28,7 +36,8 @@ export default async function handler(req, res) {
         // Health check endpoint
         if (pathname === '/api/health' && req.method === 'GET') {
             try {
-                await prisma.$queryRaw `SELECT 1`
+                const client = getPrismaClient()
+                await client.$queryRaw `SELECT 1`
                 return res.status(200).json({
                     success: true,
                     status: 'healthy',
@@ -48,7 +57,8 @@ export default async function handler(req, res) {
         // Handle products endpoint
         if (pathname === '/api/products' && req.method === 'GET') {
             try {
-                const products = await prisma.product.findMany({
+                const client = getPrismaClient()
+                const products = await client.product.findMany({
                     include: {
                         store: {
                             select: {
@@ -79,7 +89,8 @@ export default async function handler(req, res) {
         if (pathname === '/api/launches') {
             if (req.method === 'GET') {
                 try {
-                    const launches = await prisma.launch.findMany({
+                    const client = getPrismaClient()
+                    const launches = await client.launch.findMany({
                         include: {
                             product: {
                                 select: {
@@ -110,14 +121,15 @@ export default async function handler(req, res) {
             if (req.method === 'POST') {
                 try {
                     const { productId, brandTone, targetAudience, budget, platforms, additionalNotes } = req.body
+                    const client = getPrismaClient()
 
                     // Get or create a default workspace
-                    let workspace = await prisma.workspace.findFirst({
+                    let workspace = await client.workspace.findFirst({
                         where: { slug: 'default-workspace' }
                     })
 
                     if (!workspace) {
-                        workspace = await prisma.workspace.create({
+                        workspace = await client.workspace.create({
                             data: {
                                 name: 'Default Workspace',
                                 slug: 'default-workspace',
@@ -126,7 +138,7 @@ export default async function handler(req, res) {
                         })
                     }
 
-                    const newLaunch = await prisma.launch.create({
+                    const newLaunch = await client.launch.create({
                         data: {
                             workspaceId: workspace.id,
                             productId: productId || null,
@@ -171,9 +183,10 @@ export default async function handler(req, res) {
             if (req.method === 'POST') {
                 try {
                     const launchId = pathname.split('/')[3] // Extract launch ID from /api/launches/{id}/generate
+                    const client = getPrismaClient()
 
                     // Get the launch
-                    const launch = await prisma.launch.findUnique({
+                    const launch = await client.launch.findUnique({
                         where: { id: launchId },
                         include: {
                             product: true
@@ -188,7 +201,7 @@ export default async function handler(req, res) {
                     }
 
                     // Update status to GENERATING
-                    await prisma.launch.update({
+                    await client.launch.update({
                         where: { id: launchId },
                         data: { status: 'GENERATING' }
                     })
@@ -209,7 +222,7 @@ export default async function handler(req, res) {
                     }
 
                     // Update launch with generated content and COMPLETED status
-                    const updatedLaunch = await prisma.launch.update({
+                    const updatedLaunch = await client.launch.update({
                         where: { id: launchId },
                         data: {
                             status: 'COMPLETED',
@@ -240,7 +253,8 @@ export default async function handler(req, res) {
                     // If error occurs, update status to FAILED
                     if (launchId) {
                         try {
-                            await prisma.launch.update({
+                            const client = getPrismaClient()
+                            await client.launch.update({
                                 where: { id: launchId },
                                 data: { status: 'FAILED' }
                             })
@@ -261,8 +275,9 @@ export default async function handler(req, res) {
         if (pathname === '/api/shopify/connections' && req.method === 'GET') {
             try {
                 const workspaceId = req.query.workspaceId || 'default-workspace'
+                const client = getPrismaClient()
 
-                const connections = await prisma.shopifyConnection.findMany({
+                const connections = await client.shopifyConnection.findMany({
                     where: { workspaceId },
                     select: {
                         id: true,
@@ -307,6 +322,8 @@ export default async function handler(req, res) {
         })
     } finally {
         // Clean up database connection
-        await prisma.$disconnect()
+        if (prisma) {
+            await prisma.$disconnect()
+        }
     }
 }
