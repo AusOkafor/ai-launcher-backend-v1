@@ -1,15 +1,3 @@
-import { PrismaClient } from '@prisma/client'
-
-// PrismaClient is attached to the `global` object in development to prevent
-// exhausting your database connection limit.
-const globalForPrisma = globalThis
-
-const prisma = globalForPrisma.prisma || new PrismaClient({
-    log: ['query', 'error', 'warn'],
-})
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
-
 export default async function handler(req, res) {
     // Set CORS headers
     const allowedOrigins = [
@@ -40,79 +28,135 @@ export default async function handler(req, res) {
     try {
         // Health check endpoint
         if (pathname === '/api/health' && req.method === 'GET') {
-            try {
-                // Test database connection
-                await prisma.$queryRaw `SELECT 1`
-                return res.status(200).json({
-                    success: true,
-                    status: 'healthy',
-                    database: 'connected',
-                    timestamp: new Date().toISOString()
-                })
-            } catch (dbError) {
-                return res.status(503).json({
-                    success: false,
-                    status: 'unhealthy',
-                    database: 'disconnected',
-                    error: dbError.message,
-                    timestamp: new Date().toISOString()
-                })
-            }
+            return res.status(200).json({
+                success: true,
+                status: 'healthy',
+                database: 'mock',
+                timestamp: new Date().toISOString(),
+                message: 'API is running with mock data'
+            })
         }
 
         // Handle products endpoint
         if (pathname === '/api/products' && req.method === 'GET') {
-            try {
-                const products = await prisma.product.findMany({
-                    include: {
-                        store: {
-                            select: {
-                                name: true,
-                                platform: true
-                            }
-                        }
+            const mockProducts = [{
+                    id: 'mock-1',
+                    title: 'Sample Product 1',
+                    description: 'A sample product for testing',
+                    category: 'Electronics',
+                    brand: 'Sample Brand',
+                    price: 29.99,
+                    images: ['https://via.placeholder.com/300x300?text=Product+1'],
+                    store: {
+                        name: 'Sample Store',
+                        platform: 'SHOPIFY'
                     },
-                    orderBy: {
-                        createdAt: 'desc'
-                    }
-                })
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'mock-2',
+                    title: 'Sample Product 2',
+                    description: 'Another sample product',
+                    category: 'Clothing',
+                    brand: 'Fashion Brand',
+                    price: 49.99,
+                    images: ['https://via.placeholder.com/300x300?text=Product+2'],
+                    store: {
+                        name: 'Sample Store',
+                        platform: 'SHOPIFY'
+                    },
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                },
+                {
+                    id: 'mock-3',
+                    title: 'Premium Headphones',
+                    description: 'High-quality wireless headphones',
+                    category: 'Audio',
+                    brand: 'AudioTech',
+                    price: 199.99,
+                    images: ['https://via.placeholder.com/300x300?text=Headphones'],
+                    store: {
+                        name: 'Sample Store',
+                        platform: 'SHOPIFY'
+                    },
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }
+            ]
 
-                return res.status(200).json({
-                    success: true,
-                    data: { products },
-                    timestamp: new Date().toISOString()
-                })
-            } catch (dbError) {
-                // Fallback to mock data if database fails
-                console.warn('Database error, returning mock data:', dbError.message)
+            return res.status(200).json({
+                success: true,
+                data: { products: mockProducts },
+                timestamp: new Date().toISOString(),
+                note: 'Using mock data'
+            })
+        }
 
-                const mockProducts = [{
-                        id: 'mock-1',
-                        title: 'Sample Product 1',
-                        description: 'A sample product for testing',
-                        category: 'Electronics',
-                        brand: 'Sample Brand',
-                        price: 29.99,
-                        images: ['https://via.placeholder.com/300x300?text=Product+1'],
-                        store: {
-                            name: 'Sample Store',
-                            platform: 'SHOPIFY'
+        // Handle launches endpoint
+        if (pathname === '/api/launches') {
+            if (req.method === 'GET') {
+                const mockLaunches = [{
+                        id: 'mock-launch-1',
+                        workspaceId: 'test-workspace-id',
+                        productId: 'mock-1',
+                        name: 'Sample Launch 1',
+                        status: 'DRAFT',
+                        inputs: {
+                            productId: 'mock-1',
+                            brandTone: 'Professional',
+                            targetAudience: 'General',
+                            launchWindow: 'Immediate',
+                            budget: 1000,
+                            platforms: ['meta', 'tiktok']
+                        },
+                        outputs: null,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    },
+                    {
+                        id: 'mock-launch-2',
+                        workspaceId: 'test-workspace-id',
+                        productId: 'mock-2',
+                        name: 'Sample Launch 2',
+                        status: 'COMPLETED',
+                        inputs: {
+                            productId: 'mock-2',
+                            brandTone: 'Casual',
+                            targetAudience: 'Young Adults',
+                            launchWindow: 'Seasonal',
+                            budget: 2000,
+                            platforms: ['meta', 'google']
+                        },
+                        outputs: {
+                            title: 'AI-Generated Social Media Launch',
+                            description: 'Social media content for Sample Product 2',
+                            content: {
+                                headline: 'Amazing Product Alert!',
+                                postCopy: 'Check out this incredible product that will change your life!',
+                                hashtags: ['#amazing', '#product', '#lifestyle'],
+                                callToAction: 'Shop Now!'
+                            }
                         },
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString()
                     },
                     {
-                        id: 'mock-2',
-                        title: 'Sample Product 2',
-                        description: 'Another sample product',
-                        category: 'Clothing',
-                        brand: 'Fashion Brand',
-                        price: 49.99,
-                        images: ['https://via.placeholder.com/300x300?text=Product+2'],
-                        store: {
-                            name: 'Sample Store',
-                            platform: 'SHOPIFY'
+                        id: 'mock-launch-3',
+                        workspaceId: 'test-workspace-id',
+                        productId: 'mock-3',
+                        name: 'Premium Headphones Launch',
+                        status: 'SCHEDULED',
+                        inputs: {
+                            productId: 'mock-3',
+                            brandTone: 'Premium',
+                            targetAudience: 'Music Enthusiasts',
+                            launchWindow: 'Holiday Season',
+                            budget: 5000,
+                            platforms: ['meta', 'tiktok', 'google']
                         },
+                        outputs: null,
                         createdAt: new Date().toISOString(),
                         updatedAt: new Date().toISOString()
                     }
@@ -120,147 +164,47 @@ export default async function handler(req, res) {
 
                 return res.status(200).json({
                     success: true,
-                    data: { products: mockProducts },
+                    data: { launches: mockLaunches },
                     timestamp: new Date().toISOString(),
-                    note: 'Using mock data due to database connection issue'
+                    note: 'Using mock data'
                 })
-            }
-        }
-
-        // Handle launches endpoint
-        if (pathname === '/api/launches') {
-            if (req.method === 'GET') {
-                try {
-                    const launches = await prisma.launch.findMany({
-                        orderBy: {
-                            createdAt: 'desc'
-                        }
-                    })
-
-                    return res.status(200).json({
-                        success: true,
-                        data: { launches },
-                        timestamp: new Date().toISOString()
-                    })
-                } catch (dbError) {
-                    // Fallback to mock data if database fails
-                    console.warn('Database error, returning mock launches:', dbError.message)
-
-                    const mockLaunches = [{
-                            id: 'mock-launch-1',
-                            workspaceId: 'test-workspace-id',
-                            productId: 'mock-1',
-                            name: 'Sample Launch 1',
-                            status: 'DRAFT',
-                            inputs: {
-                                productId: 'mock-1',
-                                brandTone: 'Professional',
-                                targetAudience: 'General',
-                                launchWindow: 'Immediate',
-                                budget: 1000,
-                                platforms: ['meta', 'tiktok']
-                            },
-                            outputs: null,
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString()
-                        },
-                        {
-                            id: 'mock-launch-2',
-                            workspaceId: 'test-workspace-id',
-                            productId: 'mock-2',
-                            name: 'Sample Launch 2',
-                            status: 'COMPLETED',
-                            inputs: {
-                                productId: 'mock-2',
-                                brandTone: 'Casual',
-                                targetAudience: 'Young Adults',
-                                launchWindow: 'Seasonal',
-                                budget: 2000,
-                                platforms: ['meta', 'google']
-                            },
-                            outputs: {
-                                title: 'AI-Generated Social Media Launch',
-                                description: 'Social media content for Sample Product 2',
-                                content: {
-                                    headline: 'Amazing Product Alert!',
-                                    postCopy: 'Check out this incredible product that will change your life!',
-                                    hashtags: ['#amazing', '#product', '#lifestyle'],
-                                    callToAction: 'Shop Now!'
-                                }
-                            },
-                            createdAt: new Date().toISOString(),
-                            updatedAt: new Date().toISOString()
-                        }
-                    ]
-
-                    return res.status(200).json({
-                        success: true,
-                        data: { launches: mockLaunches },
-                        timestamp: new Date().toISOString(),
-                        note: 'Using mock data due to database connection issue'
-                    })
-                }
             }
 
             if (req.method === 'POST') {
                 const { productId, brandTone, targetAudience, launchWindow, budget, platforms, additionalNotes } = req.body
 
-                const launch = await prisma.launch.create({
-                    data: {
-                        workspaceId: 'test-workspace-id',
+                const newLaunch = {
+                    id: `mock-launch-${Date.now()}`,
+                    workspaceId: 'test-workspace-id',
+                    productId,
+                    name: `Launch for ${productId}`,
+                    status: 'DRAFT',
+                    inputs: {
                         productId,
-                        name: `Launch for ${productId}`,
-                        status: 'DRAFT',
-                        inputs: {
-                            productId,
-                            brandTone,
-                            targetAudience,
-                            launchWindow,
-                            budget,
-                            platforms,
-                            additionalNotes
-                        }
-                    }
-                })
+                        brandTone,
+                        targetAudience,
+                        launchWindow,
+                        budget,
+                        platforms,
+                        additionalNotes
+                    },
+                    outputs: null,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }
 
                 return res.status(201).json({
                     success: true,
-                    data: { launch },
-                    timestamp: new Date().toISOString()
+                    data: { launch: newLaunch },
+                    timestamp: new Date().toISOString(),
+                    note: 'Mock launch created'
                 })
             }
         }
 
         // Handle Shopify connections endpoint
         if (pathname === '/api/shopify/connections' && req.method === 'GET') {
-            try {
-                const workspaceId = req.query.workspaceId || 'test-workspace-id'
-
-                const connections = await prisma.shopifyConnection.findMany({
-                    where: { workspaceId },
-                    select: {
-                        id: true,
-                        shop: true,
-                        shopName: true,
-                        email: true,
-                        country: true,
-                        currency: true,
-                        status: true,
-                        createdAt: true,
-                        updatedAt: true
-                    }
-                })
-
-                return res.json({
-                    success: true,
-                    data: { connections },
-                    timestamp: new Date().toISOString()
-                })
-            } catch (dbError) {
-                // Fallback to mock data if database fails
-                console.warn('Database error, returning mock connections:', dbError.message)
-
-                const mockConnections = [{
+            const mockConnections = [{
                     id: 'mock-connection-1',
                     shop: 'sample-store.myshopify.com',
                     shopName: 'Sample Store',
@@ -270,15 +214,26 @@ export default async function handler(req, res) {
                     status: 'ACTIVE',
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
-                }]
+                },
+                {
+                    id: 'mock-connection-2',
+                    shop: 'fashion-boutique.myshopify.com',
+                    shopName: 'Fashion Boutique',
+                    email: 'hello@fashionboutique.com',
+                    country: 'CA',
+                    currency: 'CAD',
+                    status: 'ACTIVE',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }
+            ]
 
-                return res.json({
-                    success: true,
-                    data: { connections: mockConnections },
-                    timestamp: new Date().toISOString(),
-                    note: 'Using mock data due to database connection issue'
-                })
-            }
+            return res.json({
+                success: true,
+                data: { connections: mockConnections },
+                timestamp: new Date().toISOString(),
+                note: 'Using mock data'
+            })
         }
 
         // Default response for unmatched routes
@@ -289,35 +244,11 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('API error:', error)
-
-        // Check if it's a database connection error
-        if (error.code === 'P1001' || error.message.includes('connect')) {
-            return res.status(500).json({
-                success: false,
-                error: {
-                    message: 'Database connection failed',
-                    details: 'Please check your DATABASE_URL environment variable and ensure the database is running',
-                    code: error.code
-                }
-            })
-        }
-
-        // Check if it's a Prisma validation error
-        if (error.name === 'PrismaClientValidationError') {
-            return res.status(400).json({
-                success: false,
-                error: {
-                    message: 'Invalid data provided',
-                    details: error.message
-                }
-            })
-        }
-
         return res.status(500).json({
             success: false,
             error: {
                 message: 'Internal server error',
-                details: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+                details: 'Something went wrong'
             }
         })
     }
