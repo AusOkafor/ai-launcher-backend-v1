@@ -4,14 +4,14 @@ import { PrismaClient } from '@prisma/client'
 function createFreshPrismaClient() {
     // Force direct connection by modifying the connection string
     let connectionUrl = process.env.DATABASE_URL
-    
+
     // Add connection pooling parameters to force direct connections
     if (connectionUrl.includes('?')) {
         connectionUrl += '&pool_timeout=0&connection_limit=1&pgbouncer=true'
     } else {
         connectionUrl += '?pool_timeout=0&connection_limit=1&pgbouncer=true'
     }
-    
+
     return new PrismaClient({
         log: ['error'],
         datasources: {
