@@ -1,25 +1,14 @@
 import { PrismaClient } from '@prisma/client'
 
-// Production-ready Prisma client configuration
-let prisma
-
-if (process.env.NODE_ENV === 'production') {
-    prisma = new PrismaClient({
-        log: ['error'],
-        datasources: {
-            db: {
-                url: process.env.DATABASE_URL
-            }
+// Simple Prisma client for serverless - avoid connection pooling issues
+const prisma = new PrismaClient({
+    log: ['error'],
+    datasources: {
+        db: {
+            url: process.env.DATABASE_URL
         }
-    })
-} else {
-    if (!global.prisma) {
-        global.prisma = new PrismaClient({
-            log: ['query', 'error', 'warn']
-        })
     }
-    prisma = global.prisma
-}
+})
 
 export default async function handler(req, res) {
     // Set CORS headers
@@ -316,5 +305,8 @@ export default async function handler(req, res) {
                 details: error.message
             }
         })
+    } finally {
+        // Clean up database connection
+        await prisma.$disconnect()
     }
 }
