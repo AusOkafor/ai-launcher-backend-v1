@@ -1,14 +1,24 @@
 import { PrismaClient } from '@prisma/client'
 
-// PrismaClient is attached to the `global` object in development to prevent
-// exhausting your database connection limit.
-const globalForPrisma = globalThis
+let prisma
 
-const prisma = globalForPrisma.prisma || new PrismaClient({
-    log: ['query', 'error', 'warn'],
-})
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV === 'production') {
+    prisma = new PrismaClient({
+        log: ['error'],
+        datasources: {
+            db: {
+                url: process.env.DATABASE_URL
+            }
+        }
+    })
+} else {
+    if (!global.prisma) {
+        global.prisma = new PrismaClient({
+            log: ['query', 'error', 'warn']
+        })
+    }
+    prisma = global.prisma
+}
 
 export default async function handler(req, res) {
     // Set CORS headers
