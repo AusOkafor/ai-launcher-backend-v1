@@ -170,96 +170,94 @@ export default async function handler(req, res) {
         }
 
         // Handle launch generation endpoint
-        if (pathname.startsWith('/api/launches/') && pathname.includes('/generate')) {
-            if (req.method === 'POST') {
-                try {
-                    const launchId = pathname.split('/')[3] // Extract launch ID from /api/launches/{id}/generate
-                    prismaClient = createFreshPrismaClient()
+        if (pathname.startsWith('/api/launches/') && pathname.endsWith('/generate') && req.method === 'POST') {
+            try {
+                const launchId = pathname.split('/')[3] // Extract launch ID from /api/launches/{id}/generate
+                prismaClient = createFreshPrismaClient()
 
-                    // Get the launch
-                    const launch = await prismaClient.launch.findUnique({
-                        where: { id: launchId },
-                        include: {
-                            product: true
-                        }
-                    })
-
-                    if (!launch) {
-                        return res.status(404).json({
-                            success: false,
-                            error: { message: 'Launch not found' }
-                        })
+                // Get the launch
+                const launch = await prismaClient.launch.findUnique({
+                    where: { id: launchId },
+                    include: {
+                        product: true
                     }
+                })
 
-                    // Update status to GENERATING
-                    await prismaClient.launch.update({
-                        where: { id: launchId },
-                        data: { status: 'GENERATING' }
-                    })
-
-                    // Generate AI content (simulated for now)
-                    const generatedContent = {
-                        title: `AI-Generated Launch for ${launch.product?.title || 'Product'}`,
-                        description: `Social media content for ${launch.product?.title || 'Product'}`,
-                        content: {
-                            headline: `${launch.inputs.brandTone} ${launch.inputs.targetAudience} Alert!`,
-                            postCopy: `Check out this amazing ${launch.inputs.brandTone.toLowerCase()} product perfect for ${launch.inputs.targetAudience.toLowerCase()}!`,
-                            hashtags: ['#amazing', '#product', '#launch', `#${launch.inputs.brandTone.toLowerCase()}`],
-                            callToAction: 'Shop Now!',
-                            platforms: launch.inputs.platforms || ['meta', 'tiktok']
-                        },
-                        aiModel: 'simulated-ai-model',
-                        generatedAt: new Date().toISOString()
-                    }
-
-                    // Update launch with generated content and COMPLETED status
-                    const updatedLaunch = await prismaClient.launch.update({
-                        where: { id: launchId },
-                        data: {
-                            status: 'COMPLETED',
-                            outputs: generatedContent
-                        },
-                        include: {
-                            product: {
-                                select: {
-                                    id: true,
-                                    title: true,
-                                    images: true
-                                }
-                            }
-                        }
-                    })
-
-                    return res.status(200).json({
-                        success: true,
-                        data: {
-                            launch: updatedLaunch,
-                            message: 'Launch content generated successfully'
-                        }
-                    })
-
-                } catch (error) {
-                    console.error('Error generating launch content:', error)
-
-                    // If error occurs, update status to FAILED
-                    if (launchId) {
-                        try {
-                            const failClient = createFreshPrismaClient()
-                            await failClient.launch.update({
-                                where: { id: launchId },
-                                data: { status: 'FAILED' }
-                            })
-                            await failClient.$disconnect()
-                        } catch (updateError) {
-                            console.error('Error updating launch status to FAILED:', updateError)
-                        }
-                    }
-
-                    return res.status(500).json({
+                if (!launch) {
+                    return res.status(404).json({
                         success: false,
-                        error: { message: 'Failed to generate launch content' }
+                        error: { message: 'Launch not found' }
                     })
                 }
+
+                // Update status to GENERATING
+                await prismaClient.launch.update({
+                    where: { id: launchId },
+                    data: { status: 'GENERATING' }
+                })
+
+                // Generate AI content (simulated for now)
+                const generatedContent = {
+                    title: `AI-Generated Launch for ${launch.product?.title || 'Product'}`,
+                    description: `Social media content for ${launch.product?.title || 'Product'}`,
+                    content: {
+                        headline: `${launch.inputs.brandTone} ${launch.inputs.targetAudience} Alert!`,
+                        postCopy: `Check out this amazing ${launch.inputs.brandTone.toLowerCase()} product perfect for ${launch.inputs.targetAudience.toLowerCase()}!`,
+                        hashtags: ['#amazing', '#product', '#launch', `#${launch.inputs.brandTone.toLowerCase()}`],
+                        callToAction: 'Shop Now!',
+                        platforms: launch.inputs.platforms || ['meta', 'tiktok']
+                    },
+                    aiModel: 'simulated-ai-model',
+                    generatedAt: new Date().toISOString()
+                }
+
+                // Update launch with generated content and COMPLETED status
+                const updatedLaunch = await prismaClient.launch.update({
+                    where: { id: launchId },
+                    data: {
+                        status: 'COMPLETED',
+                        outputs: generatedContent
+                    },
+                    include: {
+                        product: {
+                            select: {
+                                id: true,
+                                title: true,
+                                images: true
+                            }
+                        }
+                    }
+                })
+
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        launch: updatedLaunch,
+                        message: 'Launch content generated successfully'
+                    }
+                })
+
+            } catch (error) {
+                console.error('Error generating launch content:', error)
+
+                // If error occurs, update status to FAILED
+                if (launchId) {
+                    try {
+                        const failClient = createFreshPrismaClient()
+                        await failClient.launch.update({
+                            where: { id: launchId },
+                            data: { status: 'FAILED' }
+                        })
+                        await failClient.$disconnect()
+                    } catch (updateError) {
+                        console.error('Error updating launch status to FAILED:', updateError)
+                    }
+                }
+
+                return res.status(500).json({
+                    success: false,
+                    error: { message: 'Failed to generate launch content' }
+                })
             }
         }
 
