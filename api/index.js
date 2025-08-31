@@ -170,7 +170,7 @@ export default async function handler(req, res) {
         }
 
         // Handle launch generation endpoint
-        if (pathname.startsWith('/api/launches/') && pathname.endsWith('/generate') && req.method === 'POST') {
+        if (pathname.match(/^\/api\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
             try {
                 const launchId = pathname.split('/')[3] // Extract launch ID from /api/launches/{id}/generate
                 prismaClient = createFreshPrismaClient()
