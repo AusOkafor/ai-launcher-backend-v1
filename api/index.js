@@ -2,16 +2,8 @@ import { PrismaClient } from '@prisma/client'
 
 // Create a completely fresh Prisma client for each request to avoid all connection pooling issues
 function createFreshPrismaClient() {
-    // Use transaction pooling connection but with fresh client per request
-    const connectionUrl = process.env.DATABASE_URL || 'postgresql://postgres.xvxbjiisrmapesybroqu:ksTAo16wGVQKPmXZ@aws-1-us-east-1.pooler.supabase.com:6543/postgres'
-
     return new PrismaClient({
-        log: ['error'],
-        datasources: {
-            db: {
-                url: connectionUrl
-            }
-        }
+        log: ['error']
     })
 }
 
