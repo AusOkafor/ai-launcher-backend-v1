@@ -170,7 +170,7 @@ export default async function handler(req, res) {
         }
 
         // Handle launch generation endpoint
-        if (pathname.match(/^\/api\/launches\/[^\/]+\/generate$/)) {
+        if (pathname.startsWith('/api/launches/') && pathname.includes('/generate')) {
             if (req.method === 'OPTIONS') {
                 res.status(200).end()
                 return
