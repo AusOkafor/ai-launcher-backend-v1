@@ -4,9 +4,7 @@ export default async function handler(req, res) {
     const allowed = [
         'http://localhost:8080',
         'http://localhost:3000',
-        'http://localhost:3001',
-        'https://stratosphere-ecom-ai.vercel.app',
-        'https://ai-launcher-frontend.vercel.app'
+        'https://ai-launcher-backend-v1.vercel.app'
     ]
     if (allowed.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin)
@@ -21,12 +19,16 @@ export default async function handler(req, res) {
         return
     }
 
-    const backend = process.env.WIDGET_BACKEND_URL || 'http://localhost:3000'
+    const backend = 'https://ai-launcher-backend-v1.vercel.app'
     const script = `
 (function(){
-  var SRC = (document.currentScript && document.currentScript.src) || '';
+  var scriptEl = document.currentScript;
+  var SRC = (scriptEl && scriptEl.src) || '';
   var ORIGIN = (function(){ try { return new URL(SRC).origin; } catch(e){ return ''; } })();
-  var API = (ORIGIN ? ORIGIN : '${backend}') + '/api/cart-recovery';
+  var FORCED = (scriptEl && scriptEl.getAttribute('data-endpoint')) || '';
+  var isLocal = !!ORIGIN && (/^http:\/\/localhost|^http:\/\/127\.0\.0\.1/.test(ORIGIN));
+  var API_BASE = FORCED || (isLocal ? '${backend}' : (ORIGIN || '${backend}'));
+  var API = API_BASE + '/api/cart-recovery';
   var SHOP = (window.Shopify && window.Shopify.shop) || (document.currentScript && document.currentScript.getAttribute('data-shop')) || '';
 
   function getToken(){
