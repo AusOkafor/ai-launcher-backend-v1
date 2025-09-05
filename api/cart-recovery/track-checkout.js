@@ -2,8 +2,7 @@ import { prisma } from '../lib/prisma.js'
 
 function setCors(req, res) {
     const origin = req.headers.origin || '*'
-    res.setHeader('Access-Control-Allow-Origin', origin)
-    res.setHeader('Vary', 'Origin')
+    res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 }

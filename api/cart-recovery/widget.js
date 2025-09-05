@@ -1,17 +1,7 @@
 export default async function handler(req, res) {
     // CORS for embedding
     const origin = req.headers.origin || '*'
-    const allowed = [
-        'http://localhost:8080',
-        'http://localhost:3000',
-        'https://ai-launcher-backend-v1.vercel.app'
-    ]
-    if (allowed.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin)
-        res.setHeader('Vary', 'Origin')
-    } else {
-        res.setHeader('Access-Control-Allow-Origin', '*')
-    }
+    res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
     if (req.method === 'OPTIONS') {
