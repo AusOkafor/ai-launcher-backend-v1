@@ -17,7 +17,18 @@ export default async function handler(req, res) {
     // Parse body (Shopify sometimes sends as string)
     let body = req.body;
     if (typeof body === 'string') {
-        try { body = JSON.parse(body); } catch { body = {}; }
+        try {
+            body = JSON.parse(body);
+        } catch (e) {
+            // could be urlencoded "key=value&key2=value2" style
+            const params = new URLSearchParams(body);
+            if (params.has('shop') && params.has('cartToken')) {
+                body = Object.fromEntries(params.entries());
+                // items/consents could be JSON strings inside params; leave as-is
+            } else {
+                body = {}; // fallback empty
+            }
+        }
     }
     body = body || {};
 
