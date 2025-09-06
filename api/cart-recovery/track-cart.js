@@ -2,7 +2,7 @@ export default async function handler(req, res) {
     // Allow all origins so Shopify storefront can POST
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, X-Shopify-Access-Token');
 
     if (req.method === 'OPTIONS') {
         res.status(200).end();
@@ -72,10 +72,10 @@ export default async function handler(req, res) {
                     subtotal: computedSubtotal,
                     metadata: {
                         ...cart.metadata,
-                        customerEmail: customerEmail || cart.metadata ? .customerEmail || null,
-                        customerPhone: customerPhone || cart.metadata ? .customerPhone || null,
-                        consents: consents || cart.metadata ? .consents || null,
-                        sessionId: sessionId || cart.metadata ? .sessionId || null,
+                        customerEmail: customerEmail || (cart.metadata && cart.metadata.customerEmail) || null,
+                        customerPhone: customerPhone || (cart.metadata && cart.metadata.customerPhone) || null,
+                        consents: consents || (cart.metadata && cart.metadata.consents) || null,
+                        sessionId: sessionId || (cart.metadata && cart.metadata.sessionId) || null,
                         lastActivity: new Date().toISOString()
                     }
                 }
