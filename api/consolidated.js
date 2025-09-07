@@ -603,6 +603,76 @@ export default async function handler(req, res) {
         console.log('Routing to:', pathSegments[0]);
 
         switch (pathSegments[0]) {
+            case 'workspace':
+                console.log('Workspace endpoint hit');
+                try {
+                    if (req.method === 'POST') {
+                        console.log('Creating workspace...');
+                        const { name = 'Default Workspace' } = req.body || {};
+
+                        // Create a system user first if needed
+                        let systemUser = await prisma.user.findFirst({
+                            where: { email: 'system@example.com' }
+                        });
+
+                        if (!systemUser) {
+                            systemUser = await prisma.user.create({
+                                data: {
+                                    email: 'system@example.com',
+                                    passwordHash: 'system',
+                                    firstName: 'System',
+                                    lastName: 'User',
+                                    role: 'ADMIN'
+                                }
+                            });
+                        }
+
+                        const workspace = await prisma.workspace.create({
+                            data: {
+                                name: name,
+                                slug: name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
+                                ownerId: systemUser.id,
+                                plan: 'STARTER',
+                                status: 'ACTIVE'
+                            }
+                        });
+
+                        console.log('Workspace created:', workspace.id);
+                        return res.status(200).json({
+                            success: true,
+                            data: workspace,
+                            message: 'Workspace created successfully'
+                        });
+                    }
+
+                    if (req.method === 'GET') {
+                        console.log('Getting workspaces...');
+                        const workspaces = await prisma.workspace.findMany({
+                            select: {
+                                id: true,
+                                name: true,
+                                slug: true,
+                                plan: true,
+                                status: true,
+                                createdAt: true
+                            },
+                            orderBy: { createdAt: 'desc' }
+                        });
+
+                        return res.status(200).json({
+                            success: true,
+                            data: workspaces,
+                            count: workspaces.length
+                        });
+                    }
+                } catch (error) {
+                    console.error('Workspace endpoint error:', error);
+                    return res.status(500).json({
+                        success: false,
+                        error: `Workspace error: ${error.message}`
+                    });
+                }
+                break
             case 'products':
                 console.log('Products endpoint hit');
                 try {
