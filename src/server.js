@@ -25,10 +25,14 @@ import { storeRoutes } from './routes/storeRoutes.js'
 import { analyticsRoutes } from './routes/analyticsRoutes.js'
 import shopifyRoutes from './routes/shopifyRoutes.js'
 import aiLaunchRoutes from './routes/aiLaunchRoutes.js'
-import cartRecoveryRoutes from './routes/cartRecoveryRoutes.js'
 import adCreativeRoutes from './routes/adCreativeRoutes.js'
 import returnsPreventionRoutes from './routes/returnsPreventionRoutes.js'
 import ugcTrendRoutes from './routes/ugcTrendRoutes.js'
+import creativeTemplateRoutes from './routes/creativeTemplateRoutes.js'
+import abTestingRoutes from './routes/abTestingRoutes.js'
+import performanceScoringRoutes from './routes/performanceScoringRoutes.js'
+import whatsappRoutes from './routes/whatsapp/whatsappRoutes.js'
+import imageGenerationRoutes from './routes/imageGenerationRoutes.js'
 
 // Load environment variables
 dotenv.config()
@@ -62,7 +66,10 @@ app.use(cors({
             'http://localhost:8080',
             'http://localhost:3000',
             'https://ai-launcher-frontend.vercel.app',
-            'https://stratosphere-ecom-ai.vercel.app'
+            'https://stratosphere-ecom-ai.vercel.app',
+            'https://fringo-motion.myshopify.com',
+            'https://ausdevtheme.myshopify.com',
+            'https://test-store1099.myshopify.com'
         ];
 
         if (allowedOrigins.indexOf(origin) !== -1) {
@@ -107,10 +114,14 @@ app.use('/api/stores', storeRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/shopify', shopifyRoutes)
 app.use('/api/ai-launches', aiLaunchRoutes)
-app.use('/api/cart-recovery', cartRecoveryRoutes)
 app.use('/api/ad-creatives', adCreativeRoutes)
 app.use('/api/returns-prevention', returnsPreventionRoutes)
 app.use('/api/ugc-trends', ugcTrendRoutes)
+app.use('/api/templates', creativeTemplateRoutes)
+app.use('/api/ab-tests', abTestingRoutes)
+app.use('/api/performance', performanceScoringRoutes)
+app.use('/api/whatsapp', whatsappRoutes)
+app.use('/api/images', imageGenerationRoutes)
 
 // 404 handler
 app.use('*', (req, res) => {
