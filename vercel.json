@@ -1,7 +1,6 @@
 {
     "version": 2,
-    "builds": [
-        {
+    "builds": [{
             "src": "api/**/*.js",
             "use": "@vercel/node"
         },
@@ -10,8 +9,7 @@
             "use": "@vercel/node"
         }
     ],
-    "routes": [
-        {
+    "routes": [{
             "src": "/api/whatsapp/(.*)",
             "dest": "/api/whatsapp?path=$1"
         },

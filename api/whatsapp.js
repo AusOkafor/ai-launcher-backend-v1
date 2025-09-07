@@ -17,6 +17,7 @@ import {
     exportConversations
 } from '../src/controllers/whatsapp/conversationController.js'
 
+// WhatsApp Marketplace API - Updated for Vercel deployment
 export default async function handler(req, res) {
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*')
