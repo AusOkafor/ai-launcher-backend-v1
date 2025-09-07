@@ -1,11 +1,11 @@
-import { prisma } from '../../db.js';
+import conversationService from '../../services/whatsapp/conversationService.js'
 
 const getConversations = async(req, res, next) => {
     try {
         const { status, search } = req.query;
         const limit = parseInt(req.query.limit) || 20;
         const offset = parseInt(req.query.offset) || 0;
-        const workspaceId = req.workspace ? .id;
+        const workspaceId = req.workspace && req.workspace.id;
 
         if (!workspaceId) {
             return res.status(401).json({
@@ -63,7 +63,7 @@ const getConversations = async(req, res, next) => {
 
 const getConversation = async(req, res, next) => {
     try {
-        const workspaceId = req.workspace ? .id;
+        const workspaceId = req.workspace && req.workspace.id;
         const { id } = req.params;
 
         if (!workspaceId) {
@@ -107,7 +107,7 @@ const getConversation = async(req, res, next) => {
 const addMessage = async(req, res, next) => {
     try {
         const { fromBot, content, phone } = req.body;
-        const workspaceId = req.workspace ? .id;
+        const workspaceId = req.workspace && req.workspace.id;
         const { id } = req.params;
 
         if (!workspaceId) {
@@ -154,7 +154,7 @@ const addMessage = async(req, res, next) => {
 const updateStatus = async(req, res, next) => {
     try {
         const { status } = req.body;
-        const workspaceId = req.workspace ? .id;
+        const workspaceId = req.workspace && req.workspace.id;
         const { id } = req.params;
 
         if (!workspaceId) {
@@ -196,7 +196,7 @@ const updateStatus = async(req, res, next) => {
 const exportConversations = async(req, res, next) => {
     try {
         const format = req.query.format || 'json';
-        const workspaceId = req.workspace ? .id;
+        const workspaceId = req.workspace && req.workspace.id;
 
         if (!workspaceId) {
             return res.status(401).json({

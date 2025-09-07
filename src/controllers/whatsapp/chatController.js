@@ -1,7 +1,9 @@
 // controllers/whatsapp/chatController.js
-import { sendPromptToTogether, detectIntent, extractProductDetails } from '../../utils/whatsapp/togetherClient.js';
-import { tokenizeAndExpandSearchTerms, isStockQuery, isExploratoryProductQuestion, buildSearchPlan } from '../../utils/whatsapp/synonyms.js';
-import { prisma } from '../../db.js';
+import { sendPromptToTogether, detectIntent, extractProductDetails } from '../../utils/whatsapp/togetherClient.js'
+import { tokenizeAndExpandSearchTerms, isStockQuery, isExploratoryProductQuestion, buildSearchPlan } from '../../utils/whatsapp/synonyms.js'
+import { getTopTagFacets } from '../../services/whatsapp/facetsService.js'
+import { generateRecommendations } from '../../services/whatsapp/recommendationService.js'
+import { prisma } from '../../db.js'
 
 const createSafeResponse = (content, type = 'text', products = null, buttons = null) => {
     return {
@@ -363,7 +365,7 @@ async function routeMessage(message, sessionId, chatbotId, workspaceId) {
 export const handleChatMessage = async(req, res) => {
     const chatbotId = req.params.id || req.body.chatbotId;
     const { message, sessionId } = req.body;
-    const workspaceId = req.workspace?.id;
+    const workspaceId = req.workspace && req.workspace.id;
 
     // Validate required fields
     if (!message || !sessionId || !chatbotId || !workspaceId) {

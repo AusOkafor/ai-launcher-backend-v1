@@ -3,7 +3,7 @@ import { prisma } from '../../db.js';
 export const getChatbots = async(req, res) => {
     try {
         // Validate workspace
-        if (!req.workspace ? .id) {
+        if (!req.workspace || !req.workspace.id) {
             return res.status(401).json({
                 success: false,
                 error: "Workspace access required"
@@ -78,7 +78,7 @@ export const getChatbots = async(req, res) => {
 export const getChatbotStats = async(req, res) => {
     try {
         // Validate workspace
-        if (!req.workspace ? .id) {
+        if (!req.workspace || !req.workspace.id) {
             return res.status(401).json({
                 success: false,
                 error: "Workspace access required"
@@ -131,7 +131,7 @@ export const createChatbot = async(req, res) => {
         // Debug: Log the incoming workspace
         console.log('Authenticated Workspace:', req.workspace);
 
-        if (!req.workspace ? .id) {
+        if (!req.workspace || !req.workspace.id) {
             return res.status(401).json({
                 success: false,
                 error: "Unauthorized - Missing workspace ID"
@@ -301,11 +301,11 @@ export const savePromptConfig = async(req, res) => {
         });
 
         // 3. Create version if prompt changed
-        if (currentPrompt ? .prompt !== prompt) {
+        if (currentPrompt && currentPrompt.prompt !== prompt) {
             await prisma.promptVersion.create({
                 data: {
-                    prompt: currentPrompt ? .prompt || "[initial]",
-                    modelUsed: currentPrompt ? .modelUsed || model,
+                    prompt: (currentPrompt && currentPrompt.prompt) || "[initial]",
+                    modelUsed: (currentPrompt && currentPrompt.modelUsed) || model,
                     promptBotId: updatedPrompt.id
                 }
             });
