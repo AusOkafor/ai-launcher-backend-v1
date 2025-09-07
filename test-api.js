@@ -36,7 +36,7 @@ async function testAPI() {
                 }
             } else {
                 console.log(`❌ ${endpoint.name}: ${response.status}`)
-                console.log(`   Error: ${data.error?.message || data.message}`)
+                console.log(`   Error: ${(data.error && data.error.message) || data.message}`)
             }
 
         } catch (error) {

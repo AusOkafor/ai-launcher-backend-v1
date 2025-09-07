@@ -24,7 +24,8 @@ export default async function handler(req, res) {
 
         const clientId = process.env.SHOPIFY_CLIENT_ID;
         const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
-        const scopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers';
+        const defaultScopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers';
+        const scopes = process.env.SHOPIFY_SCOPES || defaultScopes;
 
         // Debug logging
         console.log('Environment variables:');
@@ -46,7 +47,7 @@ export default async function handler(req, res) {
             });
         }
 
-        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${redirectUri}`;
+        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
         console.log(`Redirecting to Shopify OAuth: ${authUrl}`);
 

@@ -214,7 +214,11 @@ router.get('/:creativeId', async(req, res) => {
         const creative = await prisma.adCreative.findUnique({
             where: { id: creativeId },
             include: {
-                launch: true
+                launch: {
+                    include: {
+                        product: true
+                    }
+                }
             }
         })
 
@@ -284,6 +288,144 @@ router.delete('/:creativeId', async(req, res) => {
 })
 
 /**
+ * @route POST /api/ad-creatives/launch/:launchId/generate
+ * @desc Generate ad creatives for all platforms based on launch
+ */
+router.post('/launch/:launchId/generate', async(req, res) => {
+    try {
+        const { launchId } = req.params
+
+        const result = await adCreativeService.generateLaunchCreatives(launchId)
+
+        res.json({
+            success: true,
+            data: result
+        })
+    } catch (error) {
+        console.error('Error generating launch creatives:', error)
+        res.status(500).json({
+            error: 'Failed to generate launch creatives',
+            message: error.message
+        })
+    }
+})
+
+/**
+ * @route POST /api/ad-creatives/launch/:launchId/track-performance
+ * @desc Track unified performance across launch and all creatives
+ */
+router.post('/launch/:launchId/track-performance', async(req, res) => {
+    try {
+        const { launchId } = req.params
+        const metrics = req.body
+
+        const result = await adCreativeService.trackLaunchPerformance(launchId, metrics)
+
+        res.json({
+            success: true,
+            data: result
+        })
+    } catch (error) {
+        console.error('Error tracking launch performance:', error)
+        res.status(500).json({
+            error: 'Failed to track launch performance',
+            message: error.message
+        })
+    }
+})
+
+/**
+ * @route POST /api/ad-creatives/launch/:launchId/optimize
+ * @desc Optimize creatives for a specific launch based on performance
+ */
+router.post('/launch/:launchId/optimize', async(req, res) => {
+    try {
+        const { launchId } = req.params
+
+        const result = await adCreativeService.optimizeLaunchCreatives(launchId)
+
+        res.json({
+            success: true,
+            data: result
+        })
+    } catch (error) {
+        console.error('Error optimizing launch creatives:', error)
+        res.status(500).json({
+            error: 'Failed to optimize launch creatives',
+            message: error.message
+        })
+    }
+})
+
+/**
+ * @route GET /api/ad-creatives/launch/:launchId
+ * @desc Get all ad creatives for a specific launch
+ */
+router.get('/launch/:launchId', async(req, res) => {
+    try {
+        const { launchId } = req.params
+
+        const creatives = await prisma.adCreative.findMany({
+            where: { launchId },
+            include: {
+                launch: {
+                    include: {
+                        product: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        })
+
+        res.json({
+            success: true,
+            data: {
+                launchId,
+                creatives,
+                total: creatives.length
+            }
+        })
+    } catch (error) {
+        console.error('Error getting launch creatives:', error)
+        res.status(500).json({
+            error: 'Failed to get launch creatives',
+            message: error.message
+        })
+    }
+})
+
+/**
+ * @route POST /api/ad-creatives/launch/:launchId/export
+ * @desc Export creatives in multiple formats for a launch
+ */
+router.post('/launch/:launchId/export', async(req, res) => {
+    try {
+        const { launchId } = req.params
+        const { platforms, formats, sizes, includeVariations } = req.body
+
+        const result = await adCreativeService.exportLaunchCreatives(launchId, {
+            platforms: platforms || ['meta', 'tiktok', 'google', 'pinterest'],
+            formats: formats || ['image', 'video', 'carousel'],
+            sizes: sizes || ['square', 'landscape', 'portrait'],
+            includeVariations: includeVariations || false
+        })
+
+        res.json({
+            success: true,
+            data: result
+        })
+    } catch (error) {
+        console.error('Error exporting launch creatives:', error)
+        res.status(500).json({
+            error: 'Failed to export launch creatives',
+            message: error.message
+        })
+    }
+})
+
+/**
  * @route GET /api/ad-creatives
  * @desc Get all ad creatives for a store
  */
@@ -299,7 +441,11 @@ router.get('/', async(req, res) => {
         const creatives = await prisma.adCreative.findMany({
             where,
             include: {
-                launch: true
+                launch: {
+                    include: {
+                        product: true
+                    }
+                }
             },
             orderBy: {
                 createdAt: 'desc'

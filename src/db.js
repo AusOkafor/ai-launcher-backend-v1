@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 
 // Create a fresh Prisma client for each request to avoid connection pooling issues

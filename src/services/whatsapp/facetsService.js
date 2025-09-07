@@ -9,15 +9,15 @@ export async function getTopTagFacets(workspaceId, tokens = [], limit = 5) {
             workspaceId: workspaceId
         },
         status: 'ACTIVE',
-        ...(tokens.length > 0
-            ? {
+        ...(tokens.length > 0 ?
+            {
                 OR: [
                     { tags: { hasSome: tokens } },
                     ...tokens.map(t => ({ title: { contains: t, mode: 'insensitive' } })),
                     ...tokens.map(t => ({ description: { contains: t, mode: 'insensitive' } }))
                 ]
-            }
-            : {})
+            } :
+            {})
     }
 
     const products = await prisma.product.findMany({ where, take: 200 })

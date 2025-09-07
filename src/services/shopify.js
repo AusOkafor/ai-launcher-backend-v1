@@ -46,6 +46,35 @@ class ShopifyService {
         return await this.initializeClient(store);
     }
 
+    // Get or create Shopify client for a connection
+    async getClientFromConnection(connectionId) {
+        if (this.clients.has(connectionId)) {
+            return this.clients.get(connectionId);
+        }
+
+        const connection = await prisma.shopifyConnection.findUnique({
+            where: { id: connectionId },
+        });
+
+        if (!connection) {
+            throw new Error(`Shopify connection not found: ${connectionId}`);
+        }
+
+        if (!connection.accessToken) {
+            throw new Error('Store access token not found');
+        }
+
+        const client = new Shopify({
+            shopName: connection.shop.replace('.myshopify.com', ''),
+            accessToken: connection.accessToken,
+            apiVersion: '2024-01',
+        });
+
+        this.clients.set(connectionId, client);
+        logger.info(`Shopify client initialized for connection: ${connectionId}`);
+        return client;
+    }
+
     // ========================================
     // PRODUCT OPERATIONS
     // ========================================
@@ -322,18 +351,89 @@ class ShopifyService {
                 },
             };
 
+            let order;
             if (existingOrder) {
-                return await prisma.order.update({
+                order = await prisma.order.update({
                     where: { id: existingOrder.id },
                     data: orderData,
                 });
             } else {
-                return await prisma.order.create({
+                order = await prisma.order.create({
                     data: orderData,
                 });
             }
+
+            // Mark any associated cart as converted (for cart recovery tracking)
+            if (customer && customer.email) {
+                const recentCart = await prisma.cart.findFirst({
+                    where: {
+                        storeId: storeId,
+                        customerId: customer.id,
+                        status: { in: ['ACTIVE', 'CHECKOUT_STARTED', 'ABANDONED'] },
+                        createdAt: {
+                            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+                        }
+                    },
+                    orderBy: { createdAt: 'desc' }
+                });
+
+                if (recentCart) {
+                    await prisma.cart.update({
+                        where: { id: recentCart.id },
+                        data: {
+                            status: 'CONVERTED',
+                            metadata: JSON.stringify({
+                                ...JSON.parse(recentCart.metadata || '{}'),
+                                convertedOrderId: order.id,
+                                convertedAt: new Date().toISOString()
+                            })
+                        }
+                    });
+                    logger.info(`✅ Cart ${recentCart.id} marked as converted for order ${order.id}`);
+                }
+            }
+
+            return order;
         } catch (error) {
             logger.error('Error syncing order to database:', error);
+            throw error;
+        }
+    }
+
+    // ========================================
+    // CUSTOMER OPERATIONS
+    // ========================================
+
+    async syncCustomers(storeId, limit = 250) {
+        try {
+            const client = await this.getClient(storeId);
+            const customers = await client.customer.list({ limit });
+
+            const syncedCustomers = [];
+
+            for (const shopifyCustomer of customers) {
+                const customer = await this._syncCustomer(storeId, shopifyCustomer);
+                syncedCustomers.push(customer);
+            }
+
+            logger.info(`Synced ${syncedCustomers.length} customers for store: ${storeId}`);
+            return syncedCustomers;
+        } catch (error) {
+            logger.error('Error syncing customers:', error);
+            throw error;
+        }
+    }
+
+    async syncCustomer(storeId, shopifyCustomerId) {
+        try {
+            const client = await this.getClient(storeId);
+            const shopifyCustomer = await client.customer.get(shopifyCustomerId);
+
+            const customer = await this._syncCustomer(storeId, shopifyCustomer);
+            logger.info(`Synced customer: ${customer.id}`);
+            return customer;
+        } catch (error) {
+            logger.error('Error syncing customer:', error);
             throw error;
         }
     }
@@ -351,16 +451,20 @@ class ShopifyService {
             const customerData = {
                 storeId,
                 email: shopifyCustomer.email,
+                phone: shopifyCustomer.phone,
                 firstName: shopifyCustomer.first_name,
                 lastName: shopifyCustomer.last_name,
-                phone: shopifyCustomer.phone,
                 country: shopifyCustomer.default_address && shopifyCustomer.default_address.country,
                 traits: {
                     shopifyId: shopifyCustomer.id,
+                    acceptsMarketing: shopifyCustomer.accepts_marketing,
+                    verifiedEmail: shopifyCustomer.verified_email,
                     totalSpent: shopifyCustomer.total_spent,
                     ordersCount: shopifyCustomer.orders_count,
                     tags: shopifyCustomer.tags,
-                    acceptsMarketing: shopifyCustomer.accepts_marketing,
+                    note: shopifyCustomer.note,
+                    createdAt: shopifyCustomer.created_at,
+                    updatedAt: shopifyCustomer.updated_at,
                 },
             };
 
@@ -376,6 +480,70 @@ class ShopifyService {
             }
         } catch (error) {
             logger.error('Error syncing customer to database:', error);
+            throw error;
+        }
+    }
+
+    // ========================================
+    // COMPREHENSIVE SYNC OPERATIONS
+    // ========================================
+
+    async syncAll(storeId) {
+        try {
+            logger.info(`Starting comprehensive sync for store: ${storeId}`);
+
+            const results = {
+                products: [],
+                orders: [],
+                customers: [],
+                summary: {
+                    startTime: new Date(),
+                    endTime: null,
+                    totalProducts: 0,
+                    totalOrders: 0,
+                    totalCustomers: 0,
+                    errors: []
+                }
+            };
+
+            try {
+                results.products = await this.syncProducts(storeId);
+                results.summary.totalProducts = results.products.length;
+            } catch (error) {
+                logger.error('Error syncing products:', error);
+                results.summary.errors.push({ type: 'products', error: error.message });
+            }
+
+            try {
+                results.orders = await this.syncOrders(storeId);
+                results.summary.totalOrders = results.orders.length;
+            } catch (error) {
+                logger.error('Error syncing orders:', error);
+                results.summary.errors.push({ type: 'orders', error: error.message });
+            }
+
+            try {
+                results.customers = await this.syncCustomers(storeId);
+                results.summary.totalCustomers = results.customers.length;
+            } catch (error) {
+                logger.error('Error syncing customers:', error);
+                results.summary.errors.push({ type: 'customers', error: error.message });
+            }
+
+            results.summary.endTime = new Date();
+            results.summary.duration = results.summary.endTime - results.summary.startTime;
+
+            logger.info(`Comprehensive sync completed for store: ${storeId}`, {
+                products: results.summary.totalProducts,
+                orders: results.summary.totalOrders,
+                customers: results.summary.totalCustomers,
+                duration: results.summary.duration,
+                errors: results.summary.errors.length
+            });
+
+            return results;
+        } catch (error) {
+            logger.error('Error in comprehensive sync:', error);
             throw error;
         }
     }
@@ -463,6 +631,16 @@ class ShopifyService {
                     address: `${webhookUrl}/shopify/customers/update`,
                     format: 'json',
                 },
+                {
+                    topic: 'checkouts/create',
+                    address: `${webhookUrl}/shopify/checkouts/create`,
+                    format: 'json',
+                },
+                {
+                    topic: 'checkouts/update',
+                    address: `${webhookUrl}/shopify/checkouts/update`,
+                    format: 'json',
+                },
             ];
 
             for (const webhook of webhooks) {
@@ -504,21 +682,57 @@ class ShopifyService {
 
     async getStoreStats(storeId) {
         try {
-            const client = await this.getClient(storeId);
+            logger.info(`Getting store stats from database for store: ${storeId}`);
 
-            const [products, orders] = await Promise.all([
-                client.product.count(),
-                client.order.count(),
+            // Count from local database instead of Shopify API
+            const [products, orders, customers] = await Promise.all([
+                prisma.product.count({ where: { storeId } }),
+                prisma.order.count({ where: { storeId } }),
+                prisma.customer.count({ where: { storeId } }),
             ]);
 
-            return {
+            // Calculate total revenue from local orders
+            let totalRevenue = 0;
+            try {
+                const orderTotals = await prisma.order.aggregate({
+                    where: { storeId },
+                    _sum: { total: true }
+                });
+                totalRevenue = orderTotals._sum.total || 0;
+            } catch (revenueError) {
+                logger.warn('Could not calculate revenue from database:', revenueError.message);
+            }
+
+            logger.info(`Store ${storeId} stats from database:`, {
                 products,
                 orders,
-                lastSync: new Date().toISOString(),
+                customers,
+                totalRevenue
+            });
+
+            return {
+                success: true,
+                data: {
+                    totalProducts: products,
+                    totalOrders: orders,
+                    totalCustomers: customers,
+                    totalRevenue: parseFloat(totalRevenue) || 0,
+                    lastSync: new Date().toISOString(),
+                }
             };
         } catch (error) {
-            logger.error('Error getting store stats:', error);
-            throw error;
+            logger.error('Error getting store stats from database:', error);
+            return {
+                success: false,
+                error: error.message,
+                data: {
+                    totalProducts: 0,
+                    totalOrders: 0,
+                    totalCustomers: 0,
+                    totalRevenue: 0,
+                    lastSync: null,
+                }
+            };
         }
     }
 
@@ -540,6 +754,210 @@ class ShopifyService {
                 connected: false,
                 error: error.message,
             };
+        }
+    }
+
+    // ========================================
+    // CONNECTION-BASED SYNC METHODS
+    // ========================================
+
+    async syncProductsFromConnection(connectionId, limit = 250) {
+        try {
+            const client = await this.getClientFromConnection(connectionId);
+            const connection = await prisma.shopifyConnection.findUnique({
+                where: { id: connectionId }
+            });
+
+            // Create or get store record for this connection
+            let store = await prisma.store.findFirst({
+                where: { domain: connection.shop }
+            });
+
+            if (!store) {
+                store = await prisma.store.create({
+                    data: {
+                        name: connection.shopName || connection.shop,
+                        domain: connection.shop,
+                        platform: 'SHOPIFY',
+                        workspaceId: connection.workspaceId,
+                        status: 'ACTIVE'
+                    }
+                });
+
+                // Update connection with store ID
+                await prisma.shopifyConnection.update({
+                    where: { id: connectionId },
+                    data: { storeId: store.id }
+                });
+            }
+
+            const syncedProducts = [];
+            const products = await client.product.list({ limit });
+
+            logger.info(`Fetched ${products.length} products from Shopify API for connection: ${connectionId}`);
+
+            for (const shopifyProduct of products) {
+                const product = await this._syncProduct(store.id, shopifyProduct);
+                syncedProducts.push(product);
+            }
+
+            logger.info(`Synced ${syncedProducts.length} products for connection: ${connectionId}`);
+            return syncedProducts;
+        } catch (error) {
+            logger.error('Error syncing products from connection:', error);
+            throw error;
+        }
+    }
+
+    async syncOrdersFromConnection(connectionId, limit = 50) {
+        try {
+            const client = await this.getClientFromConnection(connectionId);
+            const connection = await prisma.shopifyConnection.findUnique({
+                where: { id: connectionId }
+            });
+
+            // Create or get store record for this connection
+            let store = await prisma.store.findFirst({
+                where: { domain: connection.shop }
+            });
+
+            if (!store) {
+                store = await prisma.store.create({
+                    data: {
+                        name: connection.shopName || connection.shop,
+                        domain: connection.shop,
+                        platform: 'SHOPIFY',
+                        workspaceId: connection.workspaceId,
+                        status: 'ACTIVE'
+                    }
+                });
+
+                // Update connection with store ID
+                await prisma.shopifyConnection.update({
+                    where: { id: connectionId },
+                    data: { storeId: store.id }
+                });
+            }
+
+            const orders = await client.order.list({ limit, status: 'any' });
+            const syncedOrders = [];
+
+            for (const shopifyOrder of orders) {
+                const order = await this._syncOrder(store.id, shopifyOrder);
+                syncedOrders.push(order);
+            }
+
+            logger.info(`Synced ${syncedOrders.length} orders for connection: ${connectionId}`);
+            return syncedOrders;
+        } catch (error) {
+            logger.error('Error syncing orders from connection:', error);
+            throw error;
+        }
+    }
+
+    async syncCustomersFromConnection(connectionId, limit = 250) {
+        try {
+            const client = await this.getClientFromConnection(connectionId);
+            const connection = await prisma.shopifyConnection.findUnique({
+                where: { id: connectionId }
+            });
+
+            // Create or get store record for this connection
+            let store = await prisma.store.findFirst({
+                where: { domain: connection.shop }
+            });
+
+            if (!store) {
+                store = await prisma.store.create({
+                    data: {
+                        name: connection.shopName || connection.shop,
+                        domain: connection.shop,
+                        platform: 'SHOPIFY',
+                        workspaceId: connection.workspaceId,
+                        status: 'ACTIVE'
+                    }
+                });
+
+                // Update connection with store ID
+                await prisma.shopifyConnection.update({
+                    where: { id: connectionId },
+                    data: { storeId: store.id }
+                });
+            }
+
+            const customers = await client.customer.list({ limit });
+            const syncedCustomers = [];
+
+            for (const shopifyCustomer of customers) {
+                const customer = await this._syncCustomer(store.id, shopifyCustomer);
+                syncedCustomers.push(customer);
+            }
+
+            logger.info(`Synced ${syncedCustomers.length} customers for connection: ${connectionId}`);
+            return syncedCustomers;
+        } catch (error) {
+            logger.error('Error syncing customers from connection:', error);
+            throw error;
+        }
+    }
+
+    async syncAllFromConnection(connectionId) {
+        try {
+            logger.info(`Starting comprehensive sync for connection: ${connectionId}`);
+
+            const results = {
+                products: [],
+                orders: [],
+                customers: [],
+                summary: {
+                    startTime: new Date(),
+                    endTime: null,
+                    totalProducts: 0,
+                    totalOrders: 0,
+                    totalCustomers: 0,
+                    errors: []
+                }
+            };
+
+            try {
+                results.products = await this.syncProductsFromConnection(connectionId);
+                results.summary.totalProducts = results.products.length;
+            } catch (error) {
+                logger.error('Error syncing products from connection:', error);
+                results.summary.errors.push({ type: 'products', error: error.message });
+            }
+
+            try {
+                results.orders = await this.syncOrdersFromConnection(connectionId);
+                results.summary.totalOrders = results.orders.length;
+            } catch (error) {
+                logger.error('Error syncing orders from connection:', error);
+                results.summary.errors.push({ type: 'orders', error: error.message });
+            }
+
+            try {
+                results.customers = await this.syncCustomersFromConnection(connectionId);
+                results.summary.totalCustomers = results.customers.length;
+            } catch (error) {
+                logger.error('Error syncing customers from connection:', error);
+                results.summary.errors.push({ type: 'customers', error: error.message });
+            }
+
+            results.summary.endTime = new Date();
+            results.summary.duration = results.summary.endTime - results.summary.startTime;
+
+            logger.info(`Comprehensive sync completed for connection: ${connectionId}`, {
+                products: results.summary.totalProducts,
+                orders: results.summary.totalOrders,
+                customers: results.summary.totalCustomers,
+                duration: results.summary.duration,
+                errors: results.summary.errors.length
+            });
+
+            return results;
+        } catch (error) {
+            logger.error('Error in comprehensive sync from connection:', error);
+            throw error;
         }
     }
 }

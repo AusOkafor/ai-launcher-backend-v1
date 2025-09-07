@@ -1,6 +1,6 @@
 import { prisma } from '../../db.js'
 
-export const getLastProductFromMessages = async (sessionId) => {
+export const getLastProductFromMessages = async(sessionId) => {
     const messages = await prisma.conversationMessage.findMany({
         where: {
             conversation: {
@@ -30,7 +30,7 @@ export const getLastProductFromMessages = async (sessionId) => {
     return null
 }
 
-export const getProductById = async (productId) => {
+export const getProductById = async(productId) => {
     if (!productId) return null
     return await prisma.product.findUnique({
         where: { id: productId.toString() },
@@ -41,12 +41,12 @@ export const getProductById = async (productId) => {
     })
 }
 
-export const getLastProductFromContext = async (sessionId) => {
+export const getLastProductFromContext = async(sessionId) => {
     return await getLastProductFromMessages(sessionId)
 }
 
 // Enhanced recommendation logic
-export const generateRecommendations = async (product) => {
+export const generateRecommendations = async(product) => {
     if (!product) return []
 
     const { id, storeId, tags = [], productType } = product
@@ -56,8 +56,7 @@ export const generateRecommendations = async (product) => {
             storeId: storeId,
             id: { not: id },
             status: 'ACTIVE',
-            OR: [
-                {
+            OR: [{
                     tags: {
                         hasSome: tags
                     }
@@ -93,7 +92,7 @@ export const generateRecommendations = async (product) => {
 }
 
 // Master entry point
-export const getRecommendations = async (sessionId) => {
+export const getRecommendations = async(sessionId) => {
     const context = await getLastProductFromContext(sessionId)
     const productId = context && context.productId ? context.productId : null
 

@@ -12,7 +12,7 @@ export class LaunchController {
      */
     createLaunch = async(req, res) => {
         try {
-            // For testing without auth, use a default workspace ID
+            // For testing without auth, use the test workspace ID where our synced products are
             const workspaceId = req.user && req.user.workspaceId || 'test-workspace-id';
 
             const inputs = {
@@ -55,7 +55,7 @@ export class LaunchController {
      */
     getLaunches = async(req, res) => {
         try {
-            // For testing without auth, use a default workspace ID
+            // For testing without auth, use the test workspace ID where our synced products are
             const workspaceId = req.user && req.user.workspaceId || 'test-workspace-id';
 
             const page = parseInt(req.query.page) || 1;
@@ -84,6 +84,9 @@ export class LaunchController {
                                 id: true,
                                 platform: true,
                                 status: true,
+                                inputs: true,
+                                outputs: true,
+                                metrics: true,
                             },
                         },
                     },
@@ -226,13 +229,44 @@ Make it compelling and conversion-focused.
 
             logger.info(`AI content generated and stored for launch: ${id}`);
 
-            return ApiResponse.success(res, {
-                message: 'AI content generated successfully',
-                launchId: id,
-                data: {
-                    launch: updatedLaunch
-                }
-            });
+            // Automatically generate ad creatives for all platforms
+            try {
+                const { adCreativeService } = await
+                import ('../services/adCreativeService.js');
+                const creativeResult = await adCreativeService.generateLaunchCreatives(id);
+
+                logger.info(`Ad creatives generated for launch: ${id}`, {
+                    generated: creativeResult.generated,
+                    platforms: creativeResult.creatives.map(c => c.platform)
+                });
+
+                return ApiResponse.success(res, {
+                    message: 'AI content and ad creatives generated successfully',
+                    launchId: id,
+                    data: {
+                        launch: updatedLaunch,
+                        adCreatives: {
+                            generated: creativeResult.generated,
+                            creatives: creativeResult.creatives
+                        }
+                    }
+                });
+            } catch (creativeError) {
+                logger.error('Error generating ad creatives:', creativeError);
+
+                // Still return success for launch content, but note creative generation failed
+                return ApiResponse.success(res, {
+                    message: 'AI content generated successfully, but ad creative generation failed',
+                    launchId: id,
+                    data: {
+                        launch: updatedLaunch,
+                        adCreatives: {
+                            error: 'Failed to generate ad creatives',
+                            message: creativeError.message
+                        }
+                    }
+                });
+            }
         } catch (error) {
             logger.error('Error generating launch:', error);
             return ApiResponse.error(res, 'Failed to generate launch', 500);

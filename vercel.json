@@ -4,9 +4,9 @@
         "src": "src/server.js",
         "use": "@vercel/node"
     }],
-    "routes": [{
+    "routes": [        {
             "src": "/api/whatsapp/(.*)",
-            "dest": "/api/whatsapp/$1"
+            "dest": "/api/whatsapp?path=$1"
         },
         {
             "src": "/(.*)",
