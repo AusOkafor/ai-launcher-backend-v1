@@ -1,25 +1,13 @@
 {
     "version": 2,
     "builds": [{
-            "src": "api/**/*.js",
-            "use": "@vercel/node"
-        },
-        {
-            "src": "src/server.js",
+            "src": "api/consolidated.js",
             "use": "@vercel/node"
         }
     ],
     "routes": [{
-            "src": "/api/whatsapp/(.*)",
-            "dest": "/api/whatsapp?path=$1"
-        },
-        {
             "src": "/api/(.*)",
-            "dest": "/api/$1"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/src/server.js"
+            "dest": "/api/consolidated?path=$1"
         }
     ],
     "env": {
