@@ -4,39 +4,333 @@ import { Client } from 'pg'
 // WhatsApp controllers - inline implementation for Vercel compatibility
 // Note: Importing from relative paths causes issues in Vercel serverless functions
 
-// Simple WhatsApp controller functions
+// WhatsApp Chatbot controller functions
 async function handleWhatsAppChatbots(req, res, method, query) {
-    switch (method) {
-        case 'GET':
-            return res.json({ success: true, data: [], message: 'Chatbots endpoint - implementation needed' })
-        case 'POST':
-            return res.json({ success: true, message: 'Chatbot created - implementation needed' })
-        case 'PUT':
-            return res.json({ success: true, message: 'Chatbot updated - implementation needed' })
-        case 'DELETE':
-            return res.json({ success: true, message: 'Chatbot deleted - implementation needed' })
-        case 'PATCH':
-            return res.json({ success: true, message: 'Chatbot toggled - implementation needed' })
-        default:
-            return res.status(405).json({ error: 'Method not allowed' })
+    try {
+        // For now, use a default workspace ID - in production, this would come from auth
+        const workspaceId = query.workspaceId || 'default-workspace';
+        
+        switch (method) {
+            case 'GET':
+                if (query.stats) {
+                    // Get chatbot statistics
+                    const stats = await prisma.chatbot.groupBy({
+                        by: ['type'],
+                        where: { workspaceId },
+                        _count: { id: true }
+                    });
+                    return res.json({ success: true, data: stats });
+                }
+                
+                if (query.id) {
+                    // Get specific chatbot
+                    const chatbot = await prisma.chatbot.findFirst({
+                        where: { id: query.id, workspaceId },
+                        include: {
+                            prompts: true,
+                            flows: true,
+                            _count: { select: { conversations: true } }
+                        }
+                    });
+                    
+                    if (!chatbot) {
+                        return res.status(404).json({ success: false, error: 'Chatbot not found' });
+                    }
+                    
+                    return res.json({ success: true, data: chatbot });
+                }
+                
+                // Get all chatbots
+                const chatbots = await prisma.chatbot.findMany({
+                    where: { workspaceId },
+                    include: {
+                        prompts: true,
+                        flows: true,
+                        _count: { select: { conversations: true } }
+                    },
+                    orderBy: { createdAt: 'desc' }
+                });
+                
+                return res.json({ success: true, data: chatbots });
+                
+            case 'POST':
+                const { name, description, type = 'PROMPT' } = req.body;
+                
+                if (!name) {
+                    return res.status(400).json({ success: false, error: 'Name is required' });
+                }
+                
+                const newChatbot = await prisma.chatbot.create({
+                    data: {
+                        name,
+                        description: description || '',
+                        type,
+                        workspaceId,
+                        isActive: true
+                    }
+                });
+                
+                return res.json({ success: true, data: newChatbot });
+                
+            case 'PUT':
+                const { id, ...updateData } = req.body;
+                
+                if (!id) {
+                    return res.status(400).json({ success: false, error: 'ID is required' });
+                }
+                
+                const updatedChatbot = await prisma.chatbot.update({
+                    where: { id, workspaceId },
+                    data: updateData
+                });
+                
+                return res.json({ success: true, data: updatedChatbot });
+                
+            case 'DELETE':
+                if (!query.id) {
+                    return res.status(400).json({ success: false, error: 'ID is required' });
+                }
+                
+                await prisma.chatbot.delete({
+                    where: { id: query.id, workspaceId }
+                });
+                
+                return res.json({ success: true, message: 'Chatbot deleted successfully' });
+                
+            case 'PATCH':
+                if (query.toggle && query.id) {
+                    const chatbot = await prisma.chatbot.findFirst({
+                        where: { id: query.id, workspaceId }
+                    });
+                    
+                    if (!chatbot) {
+                        return res.status(404).json({ success: false, error: 'Chatbot not found' });
+                    }
+                    
+                    const toggledChatbot = await prisma.chatbot.update({
+                        where: { id: query.id },
+                        data: { isActive: !chatbot.isActive }
+                    });
+                    
+                    return res.json({ success: true, data: toggledChatbot });
+                }
+                break;
+                
+            default:
+                return res.status(405).json({ error: 'Method not allowed' });
+        }
+    } catch (error) {
+        console.error('Chatbot controller error:', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
 
 async function handleWhatsAppChat(req, res) {
-    return res.json({ success: true, message: 'Chat message handled - implementation needed' })
+    try {
+        const { message, userId, chatbotId } = req.body;
+        const workspaceId = req.query.workspaceId || 'default-workspace';
+        
+        if (!message || !userId) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Message and userId are required' 
+            });
+        }
+        
+        // Find or create conversation
+        let conversation = await prisma.conversation.findFirst({
+            where: {
+                sessionId: userId,
+                workspaceId,
+                status: 'ACTIVE'
+            }
+        });
+        
+        if (!conversation) {
+            conversation = await prisma.conversation.create({
+                data: {
+                    sessionId: userId,
+                    workspaceId,
+                    chatbotId: chatbotId || null,
+                    status: 'ACTIVE'
+                }
+            });
+        }
+        
+        // Save user message
+        await prisma.message.create({
+            data: {
+                conversationId: conversation.id,
+                content: message,
+                sender: 'USER',
+                timestamp: new Date()
+            }
+        });
+        
+        // Generate simple bot response
+        const botResponse = `I received your message: "${message}". This is a basic response - full AI chat implementation can be added here.`;
+        
+        // Save bot response
+        await prisma.message.create({
+            data: {
+                conversationId: conversation.id,
+                content: botResponse,
+                sender: 'BOT',
+                timestamp: new Date()
+            }
+        });
+        
+        return res.json({
+            success: true,
+            data: {
+                conversationId: conversation.id,
+                response: botResponse,
+                type: 'text'
+            }
+        });
+        
+    } catch (error) {
+        console.error('Chat controller error:', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
 }
 
 async function handleWhatsAppConversations(req, res, method, query) {
-    switch (method) {
-        case 'GET':
-            if (query.export) {
-                return res.json({ success: true, data: [], message: 'Export conversations - implementation needed' })
-            }
-            return res.json({ success: true, data: [], message: 'Get conversations - implementation needed' })
-        case 'PATCH':
-            return res.json({ success: true, message: 'Conversation status updated - implementation needed' })
-        default:
-            return res.status(405).json({ error: 'Method not allowed' })
+    try {
+        const workspaceId = query.workspaceId || 'default-workspace';
+        
+        switch (method) {
+            case 'GET':
+                if (query.export) {
+                    // Export conversations
+                    const conversations = await prisma.conversation.findMany({
+                        where: { workspaceId },
+                        include: {
+                            messages: {
+                                orderBy: { timestamp: 'asc' }
+                            },
+                            chatbot: {
+                                select: { name: true }
+                            }
+                        },
+                        orderBy: { createdAt: 'desc' }
+                    });
+                    
+                    // Simple CSV-like export data
+                    const exportData = conversations.map(conv => ({
+                        id: conv.id,
+                        sessionId: conv.sessionId,
+                        chatbotName: conv.chatbot?.name || 'Unknown',
+                        status: conv.status,
+                        messageCount: conv.messages.length,
+                        createdAt: conv.createdAt,
+                        lastMessageAt: conv.messages[conv.messages.length - 1]?.timestamp
+                    }));
+                    
+                    return res.json({ 
+                        success: true, 
+                        data: exportData,
+                        format: 'json',
+                        count: exportData.length
+                    });
+                }
+                
+                if (query.id) {
+                    // Get specific conversation
+                    const conversation = await prisma.conversation.findFirst({
+                        where: { id: query.id, workspaceId },
+                        include: {
+                            messages: {
+                                orderBy: { timestamp: 'asc' }
+                            },
+                            chatbot: {
+                                select: { id: true, name: true }
+                            }
+                        }
+                    });
+                    
+                    if (!conversation) {
+                        return res.status(404).json({ success: false, error: 'Conversation not found' });
+                    }
+                    
+                    return res.json({ success: true, data: conversation });
+                }
+                
+                // Get all conversations with pagination
+                const { status, search } = query;
+                const limit = parseInt(query.limit) || 20;
+                const offset = parseInt(query.offset) || 0;
+                
+                const where = {
+                    workspaceId,
+                    ...(status && { status }),
+                    ...(search && {
+                        OR: [
+                            { sessionId: { contains: search, mode: 'insensitive' } },
+                            { messages: { some: { content: { contains: search, mode: 'insensitive' } } } }
+                        ]
+                    })
+                };
+                
+                const [conversations, total] = await Promise.all([
+                    prisma.conversation.findMany({
+                        where,
+                        include: {
+                            chatbot: {
+                                select: { id: true, name: true }
+                            },
+                            messages: {
+                                orderBy: { timestamp: 'desc' },
+                                take: 1
+                            },
+                            _count: {
+                                select: { messages: true }
+                            }
+                        },
+                        orderBy: { createdAt: 'desc' },
+                        skip: offset,
+                        take: limit
+                    }),
+                    prisma.conversation.count({ where })
+                ]);
+                
+                return res.json({
+                    success: true,
+                    data: conversations,
+                    pagination: {
+                        total,
+                        limit,
+                        offset,
+                        hasMore: offset + limit < total
+                    }
+                });
+                
+            case 'PATCH':
+                if (query.status && query.id) {
+                    const { status } = req.body;
+                    
+                    if (!['ACTIVE', 'CLOSED', 'ARCHIVED'].includes(status)) {
+                        return res.status(400).json({ 
+                            success: false, 
+                            error: 'Invalid status. Must be ACTIVE, CLOSED, or ARCHIVED' 
+                        });
+                    }
+                    
+                    const updatedConversation = await prisma.conversation.update({
+                        where: { id: query.id, workspaceId },
+                        data: { status }
+                    });
+                    
+                    return res.json({ success: true, data: updatedConversation });
+                }
+                break;
+                
+            default:
+                return res.status(405).json({ error: 'Method not allowed' });
+        }
+    } catch (error) {
+        console.error('Conversation controller error:', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 }
 
