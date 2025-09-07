@@ -271,11 +271,11 @@ async function handleWhatsAppConversations(req, res, method, query) {
                     const exportData = conversations.map(conv => ({
                         id: conv.id,
                         sessionId: conv.sessionId,
-                        chatbotName: conv.chatbot ? .name || 'Unknown',
+                        chatbotName: conv.chatbot && conv.chatbot.name || 'Unknown',
                         status: conv.status,
                         messageCount: conv.messages.length,
                         createdAt: conv.createdAt,
-                        lastMessageAt: conv.messages[conv.messages.length - 1] ? .timestamp
+                        lastMessageAt: conv.messages[conv.messages.length - 1] && conv.messages[conv.messages.length - 1].timestamp
                     }));
 
                     return res.json({
