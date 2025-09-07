@@ -9,20 +9,20 @@ async function handleWhatsAppChatbots(req, res, method, query) {
     try {
         // Get an existing workspace ID - use the first available workspace
         let workspaceId = query.workspaceId;
-        
+
         if (!workspaceId) {
             // Find the first existing workspace
             const workspace = await prisma.workspace.findFirst({
                 select: { id: true }
             });
-            
+
             if (!workspace) {
                 return res.status(400).json({
                     success: false,
                     error: 'No workspace found. Please provide a workspaceId or create a workspace first.'
                 });
             }
-            
+
             workspaceId = workspace.id;
         }
 
@@ -148,19 +148,19 @@ async function handleWhatsAppChat(req, res) {
     try {
         const { message, userId, chatbotId } = req.body;
         let workspaceId = req.query.workspaceId;
-        
+
         if (!workspaceId) {
             const workspace = await prisma.workspace.findFirst({
                 select: { id: true }
             });
-            
+
             if (!workspace) {
                 return res.status(400).json({
                     success: false,
                     error: 'No workspace found. Please provide a workspaceId.'
                 });
             }
-            
+
             workspaceId = workspace.id;
         }
 
@@ -234,19 +234,19 @@ async function handleWhatsAppChat(req, res) {
 async function handleWhatsAppConversations(req, res, method, query) {
     try {
         let workspaceId = query.workspaceId;
-        
+
         if (!workspaceId) {
             const workspace = await prisma.workspace.findFirst({
                 select: { id: true }
             });
-            
+
             if (!workspace) {
                 return res.status(400).json({
                     success: false,
                     error: 'No workspace found. Please provide a workspaceId.'
                 });
             }
-            
+
             workspaceId = workspace.id;
         }
 
@@ -571,42 +571,67 @@ async function handleOrderWebhook(req, res) {
 
 export default async function handler(req, res) {
     try {
+        console.log('=== API Handler Start ===');
+        console.log('Method:', req.method);
+        console.log('URL:', req.url);
+        console.log('Query:', req.query);
+        console.log('Headers:', req.headers);
+
         const origin = req.headers.origin || '*'
         setCorsHeaders(res, origin)
 
         if (req.method === 'OPTIONS') {
+            console.log('OPTIONS request - returning 200');
             return res.status(200).end()
         }
 
         const { path } = req.query
         const pathSegments = path ? path.split('/') : []
 
-        console.log('API Request:', {
-                method: req.method,
-                path: path,
-                pathSegments: pathSegments,
-                url: req.url
-            })
-            // Route based on path segments
+        console.log('Parsed path segments:', pathSegments);
+
+        // Health check endpoint
+        if (!pathSegments[0] || pathSegments[0] === 'health') {
+            console.log('Health check endpoint hit');
+            return res.status(200).json({
+                success: true,
+                message: 'API is running',
+                timestamp: new Date().toISOString()
+            });
+        }
+        // Route based on path segments
+        console.log('Routing to:', pathSegments[0]);
+
         switch (pathSegments[0]) {
             case 'products':
-                if (req.method === 'GET') {
-                    const products = await prisma.product.findMany({
-                        include: {
-                            store: {
-                                select: {
-                                    name: true,
-                                    platform: true
+                console.log('Products endpoint hit');
+                try {
+                    if (req.method === 'GET') {
+                        console.log('Getting products...');
+                        const products = await prisma.product.findMany({
+                            include: {
+                                store: {
+                                    select: {
+                                        name: true,
+                                        platform: true
+                                    }
                                 }
-                            }
-                        },
-                        orderBy: { createdAt: 'desc' }
-                    })
-                    return res.status(200).json({
-                        success: true,
-                        data: { products },
-                        timestamp: new Date().toISOString()
-                    })
+                            },
+                            orderBy: { createdAt: 'desc' }
+                        });
+                        console.log('Products found:', products.length);
+                        return res.status(200).json({
+                            success: true,
+                            data: { products },
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                } catch (error) {
+                    console.error('Products endpoint error:', error);
+                    return res.status(500).json({
+                        success: false,
+                        error: `Products error: ${error.message}`
+                    });
                 }
                 break
 
@@ -693,39 +718,67 @@ export default async function handler(req, res) {
                 break
 
             case 'whatsapp':
-                // WhatsApp routes
-                if (pathSegments[1] === 'chatbots') {
-                    return await handleWhatsAppChatbots(req, res, req.method, req.query)
-                } else if (pathSegments[1] === 'chat') {
-                    if (req.method === 'POST') {
-                        return await handleWhatsAppChat(req, res)
+                console.log('WhatsApp endpoint hit, subpath:', pathSegments[1]);
+                try {
+                    // WhatsApp routes
+                    if (pathSegments[1] === 'chatbots') {
+                        console.log('Calling handleWhatsAppChatbots');
+                        return await handleWhatsAppChatbots(req, res, req.method, req.query);
+                    } else if (pathSegments[1] === 'chat') {
+                        if (req.method === 'POST') {
+                            console.log('Calling handleWhatsAppChat');
+                            return await handleWhatsAppChat(req, res);
+                        }
+                    } else if (pathSegments[1] === 'conversations') {
+                        console.log('Calling handleWhatsAppConversations');
+                        return await handleWhatsAppConversations(req, res, req.method, req.query);
                     }
-                } else if (pathSegments[1] === 'conversations') {
-                    return await handleWhatsAppConversations(req, res, req.method, req.query)
+
+                    console.log('No matching WhatsApp subpath found');
+                    return res.status(404).json({
+                        success: false,
+                        error: 'WhatsApp endpoint not found'
+                    });
+                } catch (error) {
+                    console.error('WhatsApp endpoint error:', error);
+                    return res.status(500).json({
+                        success: false,
+                        error: `WhatsApp error: ${error.message}`
+                    });
                 }
                 break
 
             default:
-                // Health check
-                if (!pathSegments[0] || pathSegments[0] === 'health') {
-                    return res.status(200).json({
-                        success: true,
-                        message: 'API is running',
-                        timestamp: new Date().toISOString()
-                    })
-                }
+                console.log('Unknown endpoint:', pathSegments[0]);
+                return res.status(404).json({
+                    success: false,
+                    error: 'Endpoint not found',
+                    path: pathSegments
+                });
         }
 
+        console.log('No route matched');
         return res.status(404).json({
             success: false,
-            error: { message: 'Endpoint not found' }
-        })
+            error: 'No route matched',
+            path: pathSegments
+        });
 
     } catch (error) {
-        console.error('API Error:', error)
+        console.error('=== API Error ===');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Request details:', {
+            method: req.method,
+            url: req.url,
+            query: req.query,
+            body: req.body
+        });
+
         return res.status(500).json({
             success: false,
-            error: { message: 'Internal server error' }
-        })
+            error: `Internal server error: ${error.message}`,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 }
