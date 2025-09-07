@@ -1,15 +1,9 @@
 {
     "version": 2,
-    "builds": [{
-            "src": "api/consolidated.js",
-            "use": "@vercel/node"
-        }
-    ],
     "routes": [{
-            "src": "/api/(.*)",
-            "dest": "/api/consolidated?path=$1"
-        }
-    ],
+        "src": "/api/(.*)",
+        "dest": "/api/consolidated?path=$1"
+    }],
     "env": {
         "NODE_ENV": "production"
     },
@@ -19,7 +13,7 @@
         }
     },
     "functions": {
-        "api/**/*.js": {
+        "api/consolidated.js": {
             "maxDuration": 30
         }
     }
