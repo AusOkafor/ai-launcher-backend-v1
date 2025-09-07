@@ -25,6 +25,11 @@
     "env": {
         "NODE_ENV": "production"
     },
+    "build": {
+        "env": {
+            "ENABLE_EXPERIMENTAL_COREPACK": "1"
+        }
+    },
     "functions": {
         "api/**/*.js": {
             "maxDuration": 30
