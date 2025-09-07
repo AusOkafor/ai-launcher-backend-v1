@@ -54,16 +54,19 @@ async function handleWhatsAppChatbots(req, res, method, query) {
                 return res.json({ success: true, data: chatbots });
                 
             case 'POST':
-                const { name, description, type = 'PROMPT' } = req.body;
+                const { name, type = 'PROMPT' } = req.body;
                 
                 if (!name) {
                     return res.status(400).json({ success: false, error: 'Name is required' });
                 }
                 
+                if (!['PROMPT', 'FLOW'].includes(type)) {
+                    return res.status(400).json({ success: false, error: 'Type must be PROMPT or FLOW' });
+                }
+                
                 const newChatbot = await prisma.chatbot.create({
                     data: {
                         name,
-                        description: description || '',
                         type,
                         workspaceId,
                         isActive: true
@@ -158,11 +161,12 @@ async function handleWhatsAppChat(req, res) {
         }
         
         // Save user message
-        await prisma.message.create({
+        await prisma.conversationMessage.create({
             data: {
                 conversationId: conversation.id,
+                workspaceId: workspaceId,
                 content: message,
-                sender: 'USER',
+                fromBot: false,
                 timestamp: new Date()
             }
         });
@@ -171,11 +175,12 @@ async function handleWhatsAppChat(req, res) {
         const botResponse = `I received your message: "${message}". This is a basic response - full AI chat implementation can be added here.`;
         
         // Save bot response
-        await prisma.message.create({
+        await prisma.conversationMessage.create({
             data: {
                 conversationId: conversation.id,
+                workspaceId: workspaceId,
                 content: botResponse,
-                sender: 'BOT',
+                fromBot: true,
                 timestamp: new Date()
             }
         });
