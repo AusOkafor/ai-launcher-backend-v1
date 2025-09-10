@@ -13,7 +13,13 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 export default async function handler(req, res) {
+    console.log('=== OAuth Callback Function Started ===');
+    console.log('Method:', req.method);
+    console.log('Query:', req.query);
+    console.log('Timestamp:', new Date().toISOString());
+
     if (req.method !== 'GET') {
+        console.log('Method not allowed:', req.method);
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
@@ -143,7 +149,15 @@ export default async function handler(req, res) {
         res.redirect(`${frontendUrl}/settings?shopify=success&shop=${shop}`);
 
     } catch (error) {
-        console.error('Error in OAuth callback:', error);
+        console.error('=== OAuth Callback Error ===');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Error details:', {
+            name: error.name,
+            cause: error.cause,
+            code: error.code
+        });
+
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         res.redirect(`${frontendUrl}/settings?shopify=error&message=${encodeURIComponent(error.message)}`);
     }

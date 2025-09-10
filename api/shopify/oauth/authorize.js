@@ -1,6 +1,12 @@
 // Standalone OAuth authorize function
 export default async function handler(req, res) {
+    console.log('=== OAuth Authorize Function Started ===');
+    console.log('Method:', req.method);
+    console.log('Query:', req.query);
+    console.log('Timestamp:', new Date().toISOString());
+
     if (req.method !== 'GET') {
+        console.log('Method not allowed:', req.method);
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
@@ -74,10 +80,19 @@ export default async function handler(req, res) {
 
         res.redirect(authUrl);
     } catch (error) {
-        console.error('Error initiating OAuth:', error);
+        console.error('=== OAuth Authorize Error ===');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Error details:', {
+            name: error.name,
+            cause: error.cause,
+            code: error.code
+        });
+
         res.status(500).json({
             success: false,
-            error: 'Failed to initiate OAuth flow'
+            error: 'Failed to initiate OAuth flow',
+            details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
         });
     }
 }
