@@ -16,16 +16,22 @@ export default async function handler(req, res) {
 
         // Clean and validate shop domain format
         let cleanShop = shop.trim();
+        console.log(`DEBUG: Original shop parameter: "${shop}"`);
+        console.log(`DEBUG: After trim: "${cleanShop}"`);
 
         // Remove duplicate .myshopify.com if present
         if (cleanShop.includes('.myshopify.com.myshopify.com')) {
+            console.log(`DEBUG: Found duplicate .myshopify.com, cleaning...`);
             cleanShop = cleanShop.replace('.myshopify.com.myshopify.com', '.myshopify.com');
+            console.log(`DEBUG: After duplicate removal: "${cleanShop}"`);
         }
 
         // Don't automatically add .myshopify.com - use exactly what user provided
+        console.log(`DEBUG: Final domain before validation: "${cleanShop}"`);
 
         // Validate the cleaned domain - must be a valid Shopify domain
         if (!cleanShop.includes('.myshopify.com')) {
+            console.log(`DEBUG: Domain validation failed - no .myshopify.com found`);
             return res.status(400).json({
                 success: false,
                 error: 'Invalid shop domain. Please enter your complete Shopify store URL (e.g., your-store.myshopify.com)'
