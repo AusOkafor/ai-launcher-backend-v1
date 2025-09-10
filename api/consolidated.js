@@ -458,7 +458,7 @@ async function handleShopifyAuthorize(req, res) {
     const redirectUri = `https://ai-launcher-backend-v1.vercel.app/api/consolidated?path=shopify/oauth/callback`
     const clientId = process.env.SHOPIFY_CLIENT_ID
 
-    const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=nonce`
+    const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=nonce`
 
     console.log(`DEBUG: Final auth URL: ${authUrl}`);
     res.redirect(authUrl)
