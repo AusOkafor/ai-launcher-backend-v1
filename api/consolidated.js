@@ -429,12 +429,37 @@ async function handleShopifyAuthorize(req, res) {
         return res.status(400).json({ error: 'Shop parameter is required' })
     }
 
+    // Clean and validate shop domain format
+    let cleanShop = shop.trim();
+    console.log(`DEBUG: Original shop parameter: "${shop}"`);
+    console.log(`DEBUG: After trim: "${cleanShop}"`);
+
+    // Remove duplicate .myshopify.com if present
+    if (cleanShop.includes('.myshopify.com.myshopify.com')) {
+        console.log(`DEBUG: Found duplicate .myshopify.com, cleaning...`);
+        cleanShop = cleanShop.replace('.myshopify.com.myshopify.com', '.myshopify.com');
+        console.log(`DEBUG: After duplicate removal: "${cleanShop}"`);
+    }
+
+    // Don't automatically add .myshopify.com - use exactly what user provided
+    console.log(`DEBUG: Final domain before validation: "${cleanShop}"`);
+
+    // Validate the cleaned domain - must be a valid Shopify domain
+    if (!cleanShop.includes('.myshopify.com')) {
+        console.log(`DEBUG: Domain validation failed - no .myshopify.com found`);
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid shop domain. Please enter your complete Shopify store URL (e.g., your-store.myshopify.com)'
+        });
+    }
+
     const scopes = 'read_products,read_orders,write_products'
     const redirectUri = `${process.env.VERCEL_URL || 'http://localhost:3000'}/api/consolidated?path=shopify/oauth/callback`
     const clientId = process.env.SHOPIFY_CLIENT_ID
 
-    const authUrl = `https://${shop}.myshopify.com/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=nonce`
+    const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=nonce`
 
+    console.log(`DEBUG: Final auth URL: ${authUrl}`);
     res.redirect(authUrl)
 }
 
