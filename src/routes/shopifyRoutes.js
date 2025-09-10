@@ -21,20 +21,43 @@ router.get('/oauth/authorize', async(req, res) => {
             });
         }
 
-        // Validate shop domain format
-        if (!shop.includes('.myshopify.com')) {
+        // Clean and validate shop domain format
+        let cleanShop = shop.trim();
+
+        // Remove duplicate .myshopify.com if present
+        if (cleanShop.includes('.myshopify.com.myshopify.com')) {
+            cleanShop = cleanShop.replace('.myshopify.com.myshopify.com', '.myshopify.com');
+        }
+
+        // Ensure it ends with .myshopify.com
+        if (!cleanShop.endsWith('.myshopify.com')) {
+            if (cleanShop.includes('.myshopify.com')) {
+                // Extract the part before .myshopify.com and reconstruct
+                const storeName = cleanShop.split('.myshopify.com')[0];
+                cleanShop = `${storeName}.myshopify.com`;
+            } else {
+                cleanShop = `${cleanShop}.myshopify.com`;
+            }
+        }
+
+        // Validate the cleaned domain
+        if (!cleanShop.includes('.myshopify.com')) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid shop domain. Must be in format: your-store.myshopify.com'
             });
         }
 
+        // Use the cleaned shop domain
+        const finalShop = cleanShop;
+        logger.info(`Shop domain processed: ${shop} -> ${finalShop}`);
+
         const clientId = process.env.SHOPIFY_CLIENT_ID;
         const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
         const defaultScopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers';
         const scopes = process.env.SHOPIFY_SCOPES || defaultScopes;
 
-        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        const authUrl = `https://${finalShop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
         logger.info(`Redirecting to Shopify OAuth: ${authUrl}`);
 
