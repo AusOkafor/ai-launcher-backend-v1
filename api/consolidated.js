@@ -473,7 +473,7 @@ async function handleShopifyCallback(req, res) {
 
     try {
         // Exchange code for access token
-        const tokenResponse = await fetch(`https://${shop}.myshopify.com/admin/oauth/access_token`, {
+        const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
