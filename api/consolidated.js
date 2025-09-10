@@ -1,6 +1,17 @@
 import { PrismaClient } from '@prisma/client'
 import { Client } from 'pg'
 
+// Initialize Prisma client
+let prisma
+if (process.env.NODE_ENV === 'production') {
+    prisma = new PrismaClient()
+} else {
+    if (!global.prisma) {
+        global.prisma = new PrismaClient()
+    }
+    prisma = global.prisma
+}
+
 // WhatsApp controllers - inline implementation for Vercel compatibility
 // Note: Importing from relative paths causes issues in Vercel serverless functions
 
@@ -385,19 +396,8 @@ async function handleWhatsAppConversations(req, res, method, query) {
     }
 }
 
-let prisma
-
 function createFreshPrismaClient() {
     return new PrismaClient()
-}
-
-if (process.env.NODE_ENV === 'production') {
-    prisma = new PrismaClient()
-} else {
-    if (!global.prisma) {
-        global.prisma = new PrismaClient()
-    }
-    prisma = global.prisma
 }
 
 // CORS helper
