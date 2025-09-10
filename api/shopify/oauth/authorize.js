@@ -14,13 +14,30 @@ export default async function handler(req, res) {
             });
         }
 
-        // Validate shop domain format
-        if (!shop.includes('.myshopify.com')) {
+        // Clean and validate shop domain format
+        let cleanShop = shop.trim();
+
+        // Remove duplicate .myshopify.com if present
+        if (cleanShop.includes('.myshopify.com.myshopify.com')) {
+            cleanShop = cleanShop.replace('.myshopify.com.myshopify.com', '.myshopify.com');
+        }
+
+        // Ensure it ends with .myshopify.com
+        if (!cleanShop.endsWith('.myshopify.com')) {
+            cleanShop = `${cleanShop}.myshopify.com`;
+        }
+
+        // Validate the cleaned domain
+        if (!cleanShop.includes('.myshopify.com')) {
             return res.status(400).json({
                 success: false,
                 error: 'Invalid shop domain. Must be in format: your-store.myshopify.com'
             });
         }
+
+        // Use the cleaned shop domain
+        const finalShop = cleanShop;
+        console.log(`Shop domain processed: ${shop} -> ${finalShop}`);
 
         const clientId = process.env.SHOPIFY_CLIENT_ID;
         const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
@@ -47,7 +64,7 @@ export default async function handler(req, res) {
             });
         }
 
-        const authUrl = `https://${shop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+        const authUrl = `https://${finalShop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
         console.log(`Redirecting to Shopify OAuth: ${authUrl}`);
 
