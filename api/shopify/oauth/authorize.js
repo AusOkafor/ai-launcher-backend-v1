@@ -35,6 +35,7 @@ export default async function handler(req, res) {
         // Use the cleaned shop domain
         const finalShop = cleanShop;
         console.log(`Shop domain processed: ${shop} -> ${finalShop}`);
+        console.log(`Timestamp: ${new Date().toISOString()}`);
 
         const clientId = process.env.SHOPIFY_CLIENT_ID;
         const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
