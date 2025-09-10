@@ -22,16 +22,13 @@ export default async function handler(req, res) {
             cleanShop = cleanShop.replace('.myshopify.com.myshopify.com', '.myshopify.com');
         }
 
-        // Ensure it ends with .myshopify.com
-        if (!cleanShop.endsWith('.myshopify.com')) {
-            cleanShop = `${cleanShop}.myshopify.com`;
-        }
+        // Don't automatically add .myshopify.com - use exactly what user provided
 
-        // Validate the cleaned domain
+        // Validate the cleaned domain - must be a valid Shopify domain
         if (!cleanShop.includes('.myshopify.com')) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid shop domain. Must be in format: your-store.myshopify.com'
+                error: 'Invalid shop domain. Please enter your complete Shopify store URL (e.g., your-store.myshopify.com)'
             });
         }
 
