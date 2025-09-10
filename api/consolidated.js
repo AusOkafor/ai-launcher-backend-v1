@@ -455,7 +455,7 @@ async function handleShopifyAuthorize(req, res) {
 
     const defaultScopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers'
     const scopes = process.env.SHOPIFY_SCOPES || defaultScopes
-    const redirectUri = `https://ai-launcher-backend-v1.vercel.app/api/consolidated?path=shopify/oauth/callback`
+    const redirectUri = `https://ai-launcher-backend-v1.vercel.app/api/shopify/oauth/callback`
     const clientId = process.env.SHOPIFY_CLIENT_ID
 
     const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=nonce`
