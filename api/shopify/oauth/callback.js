@@ -106,6 +106,21 @@ export default async function handler(req, res) {
         console.log('Workspace ready:', workspace.id);
 
         console.log('Attempting to save connection to database...');
+        console.log('Connection data:', {
+            workspaceId: workspace.id,
+            shop,
+            shopifyId: shopInfo.id.toString(),
+            shopName: shopInfo.name
+        });
+
+        // Check if connection already exists
+        const existingConnection = await prisma.shopifyConnection.findFirst({
+            where: {
+                workspaceId: workspace.id,
+                shop: shop
+            }
+        });
+        console.log('Existing connection found:', existingConnection ? 'YES' : 'NO');
 
         // Create or update Shopify connection
         const connection = await prisma.shopifyConnection.upsert({
