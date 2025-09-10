@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         console.log(`Timestamp: ${new Date().toISOString()}`);
 
         const clientId = process.env.SHOPIFY_CLIENT_ID;
-        const redirectUri = process.env.SHOPIFY_REDIRECT_URI;
+        const redirectUri = process.env.SHOPIFY_REDIRECT_URI || 'https://ai-launcher-backend-v1.vercel.app/api/shopify/oauth/callback';
         const defaultScopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers';
         const scopes = process.env.SHOPIFY_SCOPES || defaultScopes;
 
