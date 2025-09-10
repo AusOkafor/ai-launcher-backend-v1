@@ -453,8 +453,9 @@ async function handleShopifyAuthorize(req, res) {
         });
     }
 
-    const scopes = 'read_products,read_orders,write_products'
-    const redirectUri = `${process.env.VERCEL_URL || 'http://localhost:3000'}/api/consolidated?path=shopify/oauth/callback`
+    const defaultScopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers'
+    const scopes = process.env.SHOPIFY_SCOPES || defaultScopes
+    const redirectUri = `https://ai-launcher-backend-v1.vercel.app/api/consolidated?path=shopify/oauth/callback`
     const clientId = process.env.SHOPIFY_CLIENT_ID
 
     const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${clientId}&scope=${scopes}&redirect_uri=${encodeURIComponent(redirectUri)}&state=nonce`
