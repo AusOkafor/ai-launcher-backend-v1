@@ -46,7 +46,8 @@ export default async function handler(req, res) {
                             name: true,
                             platform: true
                         }
-                    }
+                    },
+                    variants: true
                 },
                 orderBy: {
                     createdAt: 'desc'
