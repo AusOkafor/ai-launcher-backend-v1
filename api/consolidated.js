@@ -489,13 +489,53 @@ async function handleShopifyCallback(req, res) {
             throw new Error('Failed to get access token')
         }
 
+        // Create test user and workspace if they don't exist
+        console.log('Creating test user and workspace...');
+
+        const testUser = await prisma.user.upsert({
+            where: { email: 'test@example.com' },
+            update: {},
+            create: {
+                email: 'test@example.com',
+                passwordHash: 'test-hash',
+                firstName: 'Test',
+                lastName: 'User'
+            }
+        });
+
+        const workspace = await prisma.workspace.upsert({
+            where: { id: 'test-workspace-id' },
+            update: {},
+            create: {
+                id: 'test-workspace-id',
+                name: 'Default Workspace',
+                slug: 'default-workspace',
+                ownerId: testUser.id
+            }
+        });
+
+        console.log('Workspace ready:', workspace.id);
+
         // Store connection in database
-        await prisma.shopifyConnection.create({
-            data: {
+        await prisma.shopifyConnection.upsert({
+            where: {
+                workspaceId_shop: {
+                    workspaceId: workspace.id,
+                    shop
+                }
+            },
+            update: {
+                accessToken: tokenData.access_token,
+                scope: tokenData.scope,
+                status: 'ACTIVE',
+                updatedAt: new Date()
+            },
+            create: {
+                workspaceId: workspace.id,
                 shop,
                 accessToken: tokenData.access_token,
                 scope: tokenData.scope,
-                workspaceId: 'default-workspace'
+                status: 'ACTIVE'
             }
         })
 
