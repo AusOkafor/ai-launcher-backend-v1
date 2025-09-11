@@ -81,78 +81,42 @@ export default async function handler(req, res) {
                     title: 'Sample Product 1',
                     description: 'This is a sample product from your Shopify store',
                     price: 29.99,
-                    comparePrice: 39.99,
                     sku: 'SAMPLE-001',
-                    inventory: 50,
                     status: 'ACTIVE',
                     category: 'General',
-                    vendor: 'Your Store',
-                    tags: ['sample', 'test'],
-                    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop',
-                    storeId: connection.storeId,
-                    shopifyId: 'shopify_001',
-                    shopifyHandle: 'sample-product-1',
-                    whatsappEnabled: true
+                    brand: 'Your Store',
+                    images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop'],
+                    storeId: connection.storeId
                 },
                 {
                     title: 'Sample Product 2',
                     description: 'Another sample product from your Shopify store',
                     price: 49.99,
-                    comparePrice: null,
                     sku: 'SAMPLE-002',
-                    inventory: 25,
                     status: 'ACTIVE',
                     category: 'Electronics',
-                    vendor: 'Your Store',
-                    tags: ['electronics', 'sample'],
-                    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=300&fit=crop',
-                    storeId: connection.storeId,
-                    shopifyId: 'shopify_002',
-                    shopifyHandle: 'sample-product-2',
-                    whatsappEnabled: false
+                    brand: 'Your Store',
+                    images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=300&fit=crop'],
+                    storeId: connection.storeId
                 },
                 {
                     title: 'Sample Product 3',
                     description: 'Third sample product from your Shopify store',
                     price: 19.99,
-                    comparePrice: 24.99,
                     sku: 'SAMPLE-003',
-                    inventory: 100,
                     status: 'ACTIVE',
                     category: 'Accessories',
-                    vendor: 'Your Store',
-                    tags: ['accessories', 'sample'],
-                    image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&h=300&fit=crop',
-                    storeId: connection.storeId,
-                    shopifyId: 'shopify_003',
-                    shopifyHandle: 'sample-product-3',
-                    whatsappEnabled: true
+                    brand: 'Your Store',
+                    images: ['https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&h=300&fit=crop'],
+                    storeId: connection.storeId
                 }
             ];
 
-            // Upsert products (create or update)
+            // Create products (for sample data, we'll just create new ones)
             const syncedProducts = [];
             for (const productData of sampleProducts) {
-                const product = await prisma.product.upsert({
-                    where: {
-                        shopifyId: productData.shopifyId
-                    },
-                    update: {
-                        title: productData.title,
-                        description: productData.description,
-                        price: productData.price,
-                        comparePrice: productData.comparePrice,
-                        sku: productData.sku,
-                        inventory: productData.inventory,
-                        status: productData.status,
-                        category: productData.category,
-                        vendor: productData.vendor,
-                        tags: productData.tags,
-                        image: productData.image,
-                        whatsappEnabled: productData.whatsappEnabled,
-                        updatedAt: new Date()
-                    },
-                    create: {
+                const product = await prisma.product.create({
+                    data: {
                         ...productData,
                         createdAt: new Date(),
                         updatedAt: new Date()
