@@ -75,54 +75,56 @@ export default async function handler(req, res) {
 
             console.log('📦 Found connection:', connection.shopName);
 
-            // For now, we'll create some sample products since we don't have Shopify API integration yet
-            // In a real implementation, this would call the Shopify API to fetch products
-            const sampleProducts = [{
-                    title: 'Sample Product 1',
-                    description: 'This is a sample product from your Shopify store',
-                    price: 29.99,
-                    sku: 'SAMPLE-001',
-                    status: 'ACTIVE',
-                    category: 'General',
-                    brand: 'Your Store',
-                    images: ['https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=300&fit=crop'],
-                    storeId: connection.storeId
-                },
-                {
-                    title: 'Sample Product 2',
-                    description: 'Another sample product from your Shopify store',
-                    price: 49.99,
-                    sku: 'SAMPLE-002',
-                    status: 'ACTIVE',
-                    category: 'Electronics',
-                    brand: 'Your Store',
-                    images: ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&h=300&fit=crop'],
-                    storeId: connection.storeId
-                },
-                {
-                    title: 'Sample Product 3',
-                    description: 'Third sample product from your Shopify store',
-                    price: 19.99,
-                    sku: 'SAMPLE-003',
-                    status: 'ACTIVE',
-                    category: 'Accessories',
-                    brand: 'Your Store',
-                    images: ['https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&h=300&fit=crop'],
-                    storeId: connection.storeId
+            // Fetch real products from Shopify API
+            console.log('🔄 Fetching products from Shopify API...');
+            const shopifyProductsResponse = await fetch(`https://${connection.shop}/admin/api/2023-10/products.json`, {
+                headers: {
+                    'X-Shopify-Access-Token': connection.accessToken,
+                    'Content-Type': 'application/json'
                 }
-            ];
+            });
 
-            // Create products (for sample data, we'll just create new ones)
+            if (!shopifyProductsResponse.ok) {
+                const errorText = await shopifyProductsResponse.text();
+                console.error('❌ Shopify API error:', errorText);
+                throw new Error(`Failed to fetch products from Shopify: ${shopifyProductsResponse.statusText}`);
+            }
+
+            const shopifyData = await shopifyProductsResponse.json();
+            const shopifyProducts = shopifyData.products || [];
+
+            console.log(`📦 Found ${shopifyProducts.length} products in Shopify store`);
+
+            // Transform Shopify products to our database format
+            const transformedProducts = shopifyProducts.map(shopifyProduct => ({
+                title: shopifyProduct.title,
+                description: shopifyProduct.body_html ? shopifyProduct.body_html.replace(/<[^>]*>/g, '') : null, // Strip HTML tags
+                price: parseFloat(shopifyProduct.variants ? .[0] ? .price || 0),
+                sku: shopifyProduct.variants ? .[0] ? .sku || null,
+                status: shopifyProduct.status === 'active' ? 'ACTIVE' : 'INACTIVE',
+                category: shopifyProduct.product_type || null,
+                brand: shopifyProduct.vendor || null,
+                images: shopifyProduct.images ? .map(img => img.src) || [],
+                storeId: connection.storeId
+            }));
+
+            // Create products in database
             const syncedProducts = [];
-            for (const productData of sampleProducts) {
-                const product = await prisma.product.create({
-                    data: {
-                        ...productData,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    }
-                });
-                syncedProducts.push(product);
+            for (const productData of transformedProducts) {
+                try {
+                    const product = await prisma.product.create({
+                        data: {
+                            ...productData,
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }
+                    });
+                    syncedProducts.push(product);
+                    console.log(`✅ Created product: ${product.title}`);
+                } catch (error) {
+                    console.error(`❌ Failed to create product ${productData.title}:`, error.message);
+                    // Continue with other products even if one fails
+                }
             }
 
             // Update connection last sync time
