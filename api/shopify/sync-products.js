@@ -129,8 +129,7 @@ export default async function handler(req, res) {
             await prisma.shopifyConnection.update({
                 where: { id: connection.id },
                 data: {
-                    updatedAt: new Date(),
-                    lastSyncAt: new Date()
+                    updatedAt: new Date()
                 }
             });
 
