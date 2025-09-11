@@ -43,12 +43,19 @@ export default async function handler(req, res) {
             const { connectionId, storeId } = req.body;
             const workspaceId = req.query.workspaceId || 'test-workspace-id';
 
+            if (!connectionId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Connection ID is required'
+                });
+            }
+
             console.log('🔄 Starting product sync...', { connectionId, storeId, workspaceId });
 
             // Get the Shopify connection
             const connection = await prisma.shopifyConnection.findFirst({
                 where: {
-                    id: connectionId || { not: null },
+                    id: connectionId,
                     workspaceId: workspaceId,
                     status: 'ACTIVE'
                 },
@@ -58,9 +65,11 @@ export default async function handler(req, res) {
             });
 
             if (!connection) {
+                console.log('❌ No connection found for:', { connectionId, workspaceId });
                 return res.status(404).json({
                     success: false,
-                    error: 'No active Shopify connection found'
+                    error: 'No active Shopify connection found',
+                    details: `Connection ID: ${connectionId}, Workspace ID: ${workspaceId}`
                 });
             }
 
