@@ -517,27 +517,36 @@ async function handleShopifyCallback(req, res) {
         console.log('Workspace ready:', workspace.id);
 
         // Create Store record first
-        const store = await prisma.store.upsert({
+        let store = await prisma.store.findFirst({
             where: {
-                workspaceId_domain: {
-                    workspaceId: workspace.id,
-                    domain: shop
-                }
-            },
-            update: {
-                accessToken: tokenData.access_token,
-                status: 'ACTIVE',
-                updatedAt: new Date()
-            },
-            create: {
                 workspaceId: workspace.id,
-                platform: 'SHOPIFY',
-                name: shop.replace('.myshopify.com', ''),
-                domain: shop,
-                accessToken: tokenData.access_token,
-                status: 'ACTIVE'
+                domain: shop
             }
         });
+
+        if (store) {
+            // Update existing store
+            store = await prisma.store.update({
+                where: { id: store.id },
+                data: {
+                    accessToken: tokenData.access_token,
+                    status: 'ACTIVE',
+                    updatedAt: new Date()
+                }
+            });
+        } else {
+            // Create new store
+            store = await prisma.store.create({
+                data: {
+                    workspaceId: workspace.id,
+                    platform: 'SHOPIFY',
+                    name: shop.replace('.myshopify.com', ''),
+                    domain: shop,
+                    accessToken: tokenData.access_token,
+                    status: 'ACTIVE'
+                }
+            });
+        }
 
         console.log('Store created/updated:', store.id);
 
