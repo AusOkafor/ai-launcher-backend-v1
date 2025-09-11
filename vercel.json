@@ -1,20 +1,11 @@
 {
     "version": 2,
-    "routes": [{
-        "src": "/api/(.*)",
-        "dest": "/api/consolidated?path=$1"
-    }],
     "env": {
         "NODE_ENV": "production"
     },
     "build": {
         "env": {
             "ENABLE_EXPERIMENTAL_COREPACK": "1"
-        }
-    },
-    "functions": {
-        "api/consolidated.js": {
-            "maxDuration": 30
         }
     }
 }
