@@ -118,20 +118,48 @@ export default async function handler(req, res) {
                 };
             });
 
-            // Create products in database
+            // Create or update products in database
             const syncedProducts = [];
             for (const productData of transformedProducts) {
                 try {
-                    // Extract variants data before creating product
+                    // Extract variants data before creating/updating product
                     const { shopifyVariants, ...productCreateData } = productData;
 
-                    const product = await prisma.product.create({
-                        data: {
-                            ...productCreateData,
-                            createdAt: new Date(),
-                            updatedAt: new Date()
+                    // Check if product already exists (by storeId and title)
+                    const existingProduct = await prisma.product.findFirst({
+                        where: {
+                            storeId: productCreateData.storeId,
+                            title: productCreateData.title
                         }
                     });
+
+                    let product;
+                    if (existingProduct) {
+                        // Update existing product
+                        product = await prisma.product.update({
+                            where: { id: existingProduct.id },
+                            data: {
+                                ...productCreateData,
+                                updatedAt: new Date()
+                            }
+                        });
+                        console.log(`🔄 Updated existing product: ${product.title}`);
+
+                        // Delete existing variants to avoid duplicates
+                        await prisma.variant.deleteMany({
+                            where: { productId: product.id }
+                        });
+                    } else {
+                        // Create new product
+                        product = await prisma.product.create({
+                            data: {
+                                ...productCreateData,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            }
+                        });
+                        console.log(`✅ Created new product: ${product.title}`);
+                    }
 
                     // Create variants for this product
                     if (shopifyVariants && shopifyVariants.length > 0) {
@@ -161,9 +189,9 @@ export default async function handler(req, res) {
                     }
 
                     syncedProducts.push(product);
-                    console.log(`✅ Created product: ${product.title} with ${shopifyVariants.length} variants`);
+                    console.log(`✅ Processed product: ${product.title} with ${shopifyVariants.length} variants`);
                 } catch (error) {
-                    console.error(`❌ Failed to create product ${productData.title}:`, error.message);
+                    console.error(`❌ Failed to process product ${productData.title}:`, error.message);
                     // Continue with other products even if one fails
                 }
             }
