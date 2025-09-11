@@ -96,31 +96,72 @@ export default async function handler(req, res) {
             console.log(`📦 Found ${shopifyProducts.length} products in Shopify store`);
 
             // Transform Shopify products to our database format
-            const transformedProducts = shopifyProducts.map(shopifyProduct => ({
-                title: shopifyProduct.title,
-                description: shopifyProduct.body_html ? shopifyProduct.body_html.replace(/<[^>]*>/g, '') : null, // Strip HTML tags
-                price: parseFloat((shopifyProduct.variants && shopifyProduct.variants[0] && shopifyProduct.variants[0].price) || 0),
-                sku: (shopifyProduct.variants && shopifyProduct.variants[0] && shopifyProduct.variants[0].sku) || null,
-                status: shopifyProduct.status === 'active' ? 'ACTIVE' : 'INACTIVE',
-                category: shopifyProduct.product_type || null,
-                brand: shopifyProduct.vendor || null,
-                images: (shopifyProduct.images && shopifyProduct.images.map(img => img.src)) || [],
-                storeId: connection.storeId
-            }));
+            const transformedProducts = shopifyProducts.map(shopifyProduct => {
+                // Get all image URLs
+                const imageUrls = shopifyProduct.images ? shopifyProduct.images.map(img => img.src) : [];
+
+                // Get the first variant for basic product info
+                const firstVariant = shopifyProduct.variants && shopifyProduct.variants[0];
+
+                return {
+                    title: shopifyProduct.title,
+                    description: shopifyProduct.body_html ? shopifyProduct.body_html.replace(/<[^>]*>/g, '') : null, // Strip HTML tags
+                    price: parseFloat((firstVariant && firstVariant.price) || 0),
+                    sku: (firstVariant && firstVariant.sku) || null,
+                    status: shopifyProduct.status === 'active' ? 'ACTIVE' : 'INACTIVE',
+                    category: shopifyProduct.product_type || null,
+                    brand: shopifyProduct.vendor || null,
+                    images: imageUrls,
+                    storeId: connection.storeId,
+                    // Store variants data for later processing
+                    shopifyVariants: shopifyProduct.variants || []
+                };
+            });
 
             // Create products in database
             const syncedProducts = [];
             for (const productData of transformedProducts) {
                 try {
+                    // Extract variants data before creating product
+                    const { shopifyVariants, ...productCreateData } = productData;
+
                     const product = await prisma.product.create({
                         data: {
-                            ...productData,
+                            ...productCreateData,
                             createdAt: new Date(),
                             updatedAt: new Date()
                         }
                     });
+
+                    // Create variants for this product
+                    if (shopifyVariants && shopifyVariants.length > 0) {
+                        for (const shopifyVariant of shopifyVariants) {
+                            try {
+                                await prisma.variant.create({
+                                    data: {
+                                        productId: product.id,
+                                        options: {
+                                            title: shopifyVariant.title || 'Default',
+                                            price: shopifyVariant.price,
+                                            sku: shopifyVariant.sku,
+                                            inventory_quantity: shopifyVariant.inventory_quantity,
+                                            weight: shopifyVariant.weight,
+                                            weight_unit: shopifyVariant.weight_unit
+                                        },
+                                        price: parseFloat(shopifyVariant.price || 0),
+                                        stock: parseInt(shopifyVariant.inventory_quantity || 0),
+                                        sku: shopifyVariant.sku || null
+                                    }
+                                });
+                                console.log(`✅ Created variant for ${product.title}: ${shopifyVariant.title} (Stock: ${shopifyVariant.inventory_quantity})`);
+                            } catch (variantError) {
+                                console.error(`❌ Failed to create variant for ${product.title}:`, variantError.message);
+                            }
+                        }
+                    }
+
                     syncedProducts.push(product);
-                    console.log(`✅ Created product: ${product.title}`);
+                    console.log(`✅ Created product: ${product.title} with ${shopifyVariants.length} variants`);
                 } catch (error) {
                     console.error(`❌ Failed to create product ${productData.title}:`, error.message);
                     // Continue with other products even if one fails
