@@ -516,8 +516,33 @@ async function handleShopifyCallback(req, res) {
 
         console.log('Workspace ready:', workspace.id);
 
+        // Create Store record first
+        const store = await prisma.store.upsert({
+            where: {
+                workspaceId_domain: {
+                    workspaceId: workspace.id,
+                    domain: shop
+                }
+            },
+            update: {
+                accessToken: tokenData.access_token,
+                status: 'ACTIVE',
+                updatedAt: new Date()
+            },
+            create: {
+                workspaceId: workspace.id,
+                platform: 'SHOPIFY',
+                name: shop.replace('.myshopify.com', ''),
+                domain: shop,
+                accessToken: tokenData.access_token,
+                status: 'ACTIVE'
+            }
+        });
+
+        console.log('Store created/updated:', store.id);
+
         // Store connection in database
-        await prisma.shopifyConnection.upsert({
+        const connection = await prisma.shopifyConnection.upsert({
             where: {
                 workspaceId_shop: {
                     workspaceId: workspace.id,
@@ -528,16 +553,20 @@ async function handleShopifyCallback(req, res) {
                 accessToken: tokenData.access_token,
                 scope: tokenData.scope,
                 status: 'ACTIVE',
+                storeId: store.id,
                 updatedAt: new Date()
             },
             create: {
                 workspaceId: workspace.id,
+                storeId: store.id,
                 shop,
                 accessToken: tokenData.access_token,
                 scope: tokenData.scope,
                 status: 'ACTIVE'
             }
-        })
+        });
+
+        console.log('Shopify connection created/updated:', connection.id);
 
         res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?connected=true`)
     } catch (error) {
