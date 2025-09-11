@@ -99,12 +99,12 @@ export default async function handler(req, res) {
             const transformedProducts = shopifyProducts.map(shopifyProduct => ({
                 title: shopifyProduct.title,
                 description: shopifyProduct.body_html ? shopifyProduct.body_html.replace(/<[^>]*>/g, '') : null, // Strip HTML tags
-                price: parseFloat(shopifyProduct.variants?.[0]?.price || 0),
-                sku: shopifyProduct.variants?.[0]?.sku || null,
+                price: parseFloat((shopifyProduct.variants && shopifyProduct.variants[0] && shopifyProduct.variants[0].price) || 0),
+                sku: (shopifyProduct.variants && shopifyProduct.variants[0] && shopifyProduct.variants[0].sku) || null,
                 status: shopifyProduct.status === 'active' ? 'ACTIVE' : 'INACTIVE',
                 category: shopifyProduct.product_type || null,
                 brand: shopifyProduct.vendor || null,
-                images: shopifyProduct.images?.map(img => img.src) || [],
+                images: (shopifyProduct.images && shopifyProduct.images.map(img => img.src)) || [],
                 storeId: connection.storeId
             }));
 
