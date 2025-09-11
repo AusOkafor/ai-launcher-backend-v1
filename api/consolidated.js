@@ -421,168 +421,7 @@ function setCorsHeaders(res, origin) {
     res.setHeader('Access-Control-Allow-Credentials', 'true')
 }
 
-// Shopify OAuth handlers
-async function handleShopifyAuthorize(req, res) {
-    const { shop } = req.query
-
-    if (!shop) {
-        return res.status(400).json({ error: 'Shop parameter is required' })
-    }
-
-    // Clean and validate shop domain format
-    let cleanShop = shop.trim();
-    console.log(`DEBUG: Original shop parameter: "${shop}"`);
-    console.log(`DEBUG: After trim: "${cleanShop}"`);
-
-    // Remove duplicate .myshopify.com if present
-    if (cleanShop.includes('.myshopify.com.myshopify.com')) {
-        console.log(`DEBUG: Found duplicate .myshopify.com, cleaning...`);
-        cleanShop = cleanShop.replace('.myshopify.com.myshopify.com', '.myshopify.com');
-        console.log(`DEBUG: After duplicate removal: "${cleanShop}"`);
-    }
-
-    // Don't automatically add .myshopify.com - use exactly what user provided
-    console.log(`DEBUG: Final domain before validation: "${cleanShop}"`);
-
-    // Validate the cleaned domain - must be a valid Shopify domain
-    if (!cleanShop.includes('.myshopify.com')) {
-        console.log(`DEBUG: Domain validation failed - no .myshopify.com found`);
-        return res.status(400).json({
-            success: false,
-            error: 'Invalid shop domain. Please enter your complete Shopify store URL (e.g., your-store.myshopify.com)'
-        });
-    }
-
-    const defaultScopes = 'read_products,write_products,read_orders,write_orders,read_customers,write_customers'
-    const scopes = process.env.SHOPIFY_SCOPES || defaultScopes
-    const redirectUri = `https://ai-launcher-backend-v1.vercel.app/api/shopify/oauth/callback`
-    const clientId = process.env.SHOPIFY_CLIENT_ID
-
-    const authUrl = `https://${cleanShop}/admin/oauth/authorize?client_id=${clientId}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=nonce`
-
-    console.log(`DEBUG: Final auth URL: ${authUrl}`);
-    res.redirect(authUrl)
-}
-
-async function handleShopifyCallback(req, res) {
-    const { code, shop, state } = req.query
-
-    if (!code || !shop) {
-        return res.status(400).json({ error: 'Missing required parameters' })
-    }
-
-    try {
-        // Exchange code for access token
-        const tokenResponse = await fetch(`https://${shop}/admin/oauth/access_token`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                client_id: process.env.SHOPIFY_CLIENT_ID,
-                client_secret: process.env.SHOPIFY_CLIENT_SECRET,
-                code
-            })
-        })
-
-        const tokenData = await tokenResponse.json()
-
-        if (!tokenData.access_token) {
-            throw new Error('Failed to get access token')
-        }
-
-        // Create test user and workspace if they don't exist
-        console.log('Creating test user and workspace...');
-
-        const testUser = await prisma.user.upsert({
-            where: { email: 'test@example.com' },
-            update: {},
-            create: {
-                email: 'test@example.com',
-                passwordHash: 'test-hash',
-                firstName: 'Test',
-                lastName: 'User'
-            }
-        });
-
-        const workspace = await prisma.workspace.upsert({
-            where: { id: 'test-workspace-id' },
-            update: {},
-            create: {
-                id: 'test-workspace-id',
-                name: 'Default Workspace',
-                slug: 'default-workspace',
-                ownerId: testUser.id
-            }
-        });
-
-        console.log('Workspace ready:', workspace.id);
-
-        // Create Store record first
-        let store = await prisma.store.findFirst({
-            where: {
-                workspaceId: workspace.id,
-                domain: shop
-            }
-        });
-
-        if (store) {
-            // Update existing store
-            store = await prisma.store.update({
-                where: { id: store.id },
-                data: {
-                    accessToken: tokenData.access_token,
-                    status: 'ACTIVE',
-                    updatedAt: new Date()
-                }
-            });
-        } else {
-            // Create new store
-            store = await prisma.store.create({
-                data: {
-                    workspaceId: workspace.id,
-                    platform: 'SHOPIFY',
-                    name: shop.replace('.myshopify.com', ''),
-                    domain: shop,
-                    accessToken: tokenData.access_token,
-                    status: 'ACTIVE'
-                }
-            });
-        }
-
-        console.log('Store created/updated:', store.id);
-
-        // Store connection in database
-        const connection = await prisma.shopifyConnection.upsert({
-            where: {
-                workspaceId_shop: {
-                    workspaceId: workspace.id,
-                    shop
-                }
-            },
-            update: {
-                accessToken: tokenData.access_token,
-                scope: tokenData.scope,
-                status: 'ACTIVE',
-                storeId: store.id,
-                updatedAt: new Date()
-            },
-            create: {
-                workspaceId: workspace.id,
-                storeId: store.id,
-                shop,
-                accessToken: tokenData.access_token,
-                scope: tokenData.scope,
-                status: 'ACTIVE'
-            }
-        });
-
-        console.log('Shopify connection created/updated:', connection.id);
-
-        res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/settings?connected=true`)
-    } catch (error) {
-        console.error('OAuth callback error:', error)
-        res.status(500).json({ error: 'Authentication failed' })
-    }
-}
+// Shopify OAuth handlers removed - using individual OAuth functions instead
 
 // Shopify webhook handler
 async function handleOrderWebhook(req, res) {
@@ -879,12 +718,11 @@ export default async function handler(req, res) {
                     }
                 }
                 if (pathSegments[1] === 'oauth') {
-                    if (pathSegments[2] === 'authorize') {
-                        return handleShopifyAuthorize(req, res)
-                    }
-                    if (pathSegments[2] === 'callback') {
-                        return handleShopifyCallback(req, res)
-                    }
+                    // OAuth routes are handled by individual functions, not consolidated
+                    return res.status(404).json({
+                        success: false,
+                        error: 'OAuth routes are handled by individual functions. Use /api/shopify/oauth/authorize and /api/shopify/oauth/callback'
+                    })
                 }
                 if (pathSegments[1] === 'webhooks' && pathSegments[2] === 'orders' && pathSegments[3] === 'create') {
                     return handleOrderWebhook(req, res)
