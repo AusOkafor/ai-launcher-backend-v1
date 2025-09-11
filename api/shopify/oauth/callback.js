@@ -159,6 +159,52 @@ export default async function handler(req, res) {
 
         console.log(`Shopify connection created/updated: ${connection.id}`);
 
+        // Create or update corresponding Store record
+        console.log('Creating/updating Store record...');
+
+        // First, try to find existing store
+        let store = await prisma.store.findFirst({
+            where: {
+                workspaceId: workspace.id,
+                domain: shop
+            }
+        });
+
+        if (store) {
+            // Update existing store
+            store = await prisma.store.update({
+                where: { id: store.id },
+                data: {
+                    name: shopInfo.name,
+                    accessToken: access_token,
+                    status: 'ACTIVE',
+                    updatedAt: new Date()
+                }
+            });
+        } else {
+            // Create new store
+            store = await prisma.store.create({
+                data: {
+                    workspaceId: workspace.id,
+                    platform: 'SHOPIFY',
+                    name: shopInfo.name,
+                    domain: shop,
+                    accessToken: access_token,
+                    status: 'ACTIVE'
+                }
+            });
+        }
+
+        console.log(`Store created/updated: ${store.id}`);
+
+        // Update the ShopifyConnection to link to the Store
+        await prisma.shopifyConnection.update({
+            where: { id: connection.id },
+            data: { storeId: store.id }
+        });
+
+        console.log('ShopifyConnection linked to Store');
+
         // Redirect to frontend with success
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         res.redirect(`${frontendUrl}/settings?shopify=success&shop=${shop}`);
