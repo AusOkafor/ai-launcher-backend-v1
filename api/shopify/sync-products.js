@@ -64,7 +64,7 @@ export default async function handler(req, res) {
                 });
             }
 
-            console.log('📦 Found connection:', connection.shop);
+            console.log('📦 Found connection:', connection.shopName);
 
             // For now, we'll create some sample products since we don't have Shopify API integration yet
             // In a real implementation, this would call the Shopify API to fetch products
@@ -169,7 +169,7 @@ export default async function handler(req, res) {
                 data: {
                     syncedCount: syncedProducts.length,
                     connectionId: connection.id,
-                    storeName: connection.shop,
+                    storeName: connection.shopName,
                     lastSync: new Date().toISOString()
                 }
             });
