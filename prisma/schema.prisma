@@ -173,6 +173,7 @@ model Product {
   images      String[] // Array of image URLs
   attributes  Json?    // Product attributes as JSON
   status      ProductStatus @default(ACTIVE)
+  whatsappEnabled Boolean @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

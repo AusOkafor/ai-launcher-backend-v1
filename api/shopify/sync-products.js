@@ -113,6 +113,7 @@ export default async function handler(req, res) {
                     brand: shopifyProduct.vendor || null,
                     images: imageUrls,
                     storeId: connection.storeId,
+                    whatsappEnabled: false, // Default to false for new products
                     // Store variants data for later processing
                     shopifyVariants: shopifyProduct.variants || []
                 };
