@@ -244,7 +244,7 @@ async function handleOrders(req, res, pathSegments) {
         const order = await prisma.order.create({
             data: {
                 storeId: storeId,
-                customerId: customer ? .id || null,
+                customerId: customer && customer.id || null,
                 externalId: orderNumber,
                 orderNumber: orderNumber,
                 items: items,
