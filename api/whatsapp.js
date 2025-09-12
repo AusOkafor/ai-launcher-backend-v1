@@ -51,6 +51,12 @@ export default async function handler(req, res) {
             return handleOrders(req, res, pathSegments);
         } else if (pathSegments[0] === 'stats') {
             return handleStats(req, res, pathSegments);
+        } else if (pathSegments[0] === 'chat') {
+            return handleChat(req, res, pathSegments);
+        } else if (pathSegments[0] === 'cart') {
+            return handleCart(req, res, pathSegments);
+        } else if (pathSegments[0] === 'checkout') {
+            return handleCheckout(req, res, pathSegments);
         }
 
         return res.status(404).json({
@@ -127,13 +133,201 @@ async function handleConversations(req, res, pathSegments) {
 // Handle orders endpoints
 async function handleOrders(req, res, pathSegments) {
     if (req.method === 'GET') {
-        // Return WhatsApp orders list (empty for now)
-        const orders = [];
+        const { source, status, storeId } = req.query;
+
+        // Build where clause
+        const where = {};
+        if (source === 'whatsapp') {
+            // For WhatsApp orders, we can filter by metadata or other criteria
+            where.metadata = {
+                path: ['source'],
+                equals: 'whatsapp'
+            };
+        }
+        if (status && status !== 'all') {
+            where.status = status.toUpperCase();
+        }
+        if (storeId && storeId !== 'all') {
+            where.storeId = storeId;
+        }
+
+        const orders = await prisma.order.findMany({
+            where,
+            include: {
+                store: {
+                    select: {
+                        name: true,
+                        platform: true
+                    }
+                },
+                customer: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        phone: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
 
         return res.status(200).json({
             success: true,
             data: { orders },
             timestamp: new Date().toISOString()
+        });
+    }
+
+    if (req.method === 'POST') {
+        const {
+            storeId,
+            customerName,
+            phone,
+            email,
+            items,
+            total,
+            shippingAddress,
+            paymentMethod,
+            source = 'whatsapp_simulator',
+            cartId // Optional: if converting from cart
+        } = req.body;
+
+        if (!storeId || !customerName || !items || !total) {
+            return res.status(400).json({
+                success: false,
+                error: 'Store ID, customer name, items, and total are required'
+            });
+        }
+
+        console.log('🛍️ Creating new order:', { customerName, total, source });
+
+        // Create or find customer
+        let customer = null;
+        if (email) {
+            customer = await prisma.customer.upsert({
+                where: {
+                    storeId_email: {
+                        storeId: storeId,
+                        email: email
+                    }
+                },
+                update: {
+                    firstName: customerName.split(' ')[0] || customerName,
+                    lastName: customerName.split(' ').slice(1).join(' ') || '',
+                    phone: phone || null
+                },
+                create: {
+                    storeId: storeId,
+                    firstName: customerName.split(' ')[0] || customerName,
+                    lastName: customerName.split(' ').slice(1).join(' ') || '',
+                    email: email,
+                    phone: phone || null
+                }
+            });
+        }
+
+        // If cartId is provided, mark cart as completed
+        if (cartId) {
+            await prisma.cart.update({
+                where: { id: cartId },
+                data: { status: 'COMPLETED' }
+            });
+        }
+
+        // Generate order number
+        const orderNumber = `#WA${Date.now().toString().slice(-6)}`;
+
+        // Create order
+        const order = await prisma.order.create({
+            data: {
+                storeId: storeId,
+                customerId: customer ? .id || null,
+                externalId: orderNumber,
+                orderNumber: orderNumber,
+                items: items,
+                total: parseFloat(total),
+                status: 'PENDING',
+                metadata: {
+                    source: source,
+                    paymentMethod: paymentMethod || 'WhatsApp Pay',
+                    shippingAddress: shippingAddress || 'Not provided',
+                    customerName: customerName,
+                    phone: phone,
+                    email: email
+                }
+            },
+            include: {
+                store: {
+                    select: {
+                        name: true,
+                        platform: true
+                    }
+                },
+                customer: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        phone: true
+                    }
+                }
+            }
+        });
+
+        console.log('✅ Order created:', order.orderNumber);
+
+        return res.status(201).json({
+            success: true,
+            message: 'Order created successfully',
+            data: {
+                order: order
+            }
+        });
+    }
+
+    if (req.method === 'PATCH') {
+        const { orderId, status } = req.body;
+
+        if (!orderId || !status) {
+            return res.status(400).json({
+                success: false,
+                error: 'Order ID and status are required'
+            });
+        }
+
+        const updatedOrder = await prisma.order.update({
+            where: { id: orderId },
+            data: {
+                status: status.toUpperCase(),
+                updatedAt: new Date()
+            },
+            include: {
+                store: {
+                    select: {
+                        name: true,
+                        platform: true
+                    }
+                },
+                customer: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        phone: true
+                    }
+                }
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: `Order status updated to ${status}`,
+            data: {
+                order: updatedOrder
+            }
         });
     }
 
@@ -166,5 +360,243 @@ async function handleStats(req, res, pathSegments) {
     return res.status(405).json({
         success: false,
         error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle chat endpoints
+async function handleChat(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        const { message, workspaceId } = req.body;
+
+        if (!message || !workspaceId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Message and workspaceId are required'
+            });
+        }
+
+        console.log('🤖 Processing message:', message);
+
+        // For now, return a simple response
+        // In production, you would integrate with AI here
+        const response = {
+            type: 'text',
+            content: "I'm here to help you find products and answer questions about our store. What can I help you with today?"
+        };
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                intent: 'general_question',
+                response
+            }
+        });
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle cart endpoints
+async function handleCart(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        // Get cart by sessionId or customerId
+        const { sessionId, customerId, storeId } = req.query;
+
+        if (!storeId) {
+            return res.status(400).json({
+                success: false,
+                error: 'storeId is required'
+            });
+        }
+
+        const cart = await prisma.cart.findFirst({
+            where: {
+                storeId,
+                ...(sessionId && { metadata: { path: ['sessionId'], equals: sessionId } }),
+                ...(customerId && { customerId }),
+                status: 'ACTIVE'
+            },
+            include: {
+                store: {
+                    select: {
+                        name: true,
+                        domain: true
+                    }
+                }
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: { cart: cart || null }
+        });
+
+    } else if (req.method === 'POST') {
+        // Add item to cart or create new cart
+        const {
+            storeId,
+            sessionId,
+            customerId,
+            items,
+            subtotal
+        } = req.body;
+
+        if (!storeId || !items || !Array.isArray(items)) {
+            return res.status(400).json({
+                success: false,
+                error: 'storeId and items array are required'
+            });
+        }
+
+        // Find existing cart
+        let cart = await prisma.cart.findFirst({
+            where: {
+                storeId,
+                ...(sessionId && { metadata: { path: ['sessionId'], equals: sessionId } }),
+                ...(customerId && { customerId }),
+                status: 'ACTIVE'
+            }
+        });
+
+        if (cart) {
+            // Update existing cart
+            cart = await prisma.cart.update({
+                where: { id: cart.id },
+                data: {
+                    items: items,
+                    subtotal: subtotal || 0,
+                    updatedAt: new Date()
+                }
+            });
+        } else {
+            // Create new cart
+            cart = await prisma.cart.create({
+                data: {
+                    storeId,
+                    customerId,
+                    items: items,
+                    subtotal: subtotal || 0,
+                    status: 'ACTIVE',
+                    metadata: sessionId ? { sessionId } : null
+                }
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: { cart },
+            message: 'Cart updated successfully'
+        });
+
+    } else if (req.method === 'DELETE') {
+        // Clear cart
+        const { sessionId, customerId, storeId } = req.body;
+
+        if (!storeId) {
+            return res.status(400).json({
+                success: false,
+                error: 'storeId is required'
+            });
+        }
+
+        const cart = await prisma.cart.findFirst({
+            where: {
+                storeId,
+                ...(sessionId && { metadata: { path: ['sessionId'], equals: sessionId } }),
+                ...(customerId && { customerId }),
+                status: 'ACTIVE'
+            }
+        });
+
+        if (cart) {
+            await prisma.cart.update({
+                where: { id: cart.id },
+                data: { status: 'ABANDONED' }
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Cart cleared successfully'
+        });
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: 'Method not allowed'
+    });
+}
+
+// Handle checkout endpoints
+async function handleCheckout(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        const { items, customerInfo, storeId } = req.body;
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Items array is required'
+            });
+        }
+
+        console.log('🛒 Creating Shopify checkout for items:', items.length);
+
+        // Get store information
+        const store = await prisma.store.findUnique({
+            where: { id: storeId },
+            include: {
+                shopifyConnection: true
+            }
+        });
+
+        if (!store || !store.shopifyConnection) {
+            return res.status(400).json({
+                success: false,
+                error: 'Store or Shopify connection not found'
+            });
+        }
+
+        // For now, create a mock checkout URL
+        // In production, you would call Shopify's Storefront API
+        const checkoutId = `checkout_${Date.now()}`;
+        const checkoutUrl = `https://${store.domain}/checkout/${checkoutId}`;
+
+        // Store checkout in database for tracking
+        const checkout = await prisma.cart.create({
+            data: {
+                storeId: store.id,
+                customerId: null, // Will be updated when customer completes checkout
+                shopifyCartId: checkoutId,
+                status: 'CHECKOUT_CREATED',
+                items: JSON.stringify(items),
+                total: items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+                currency: 'USD',
+                metadata: JSON.stringify({
+                    checkoutUrl,
+                    source: 'whatsapp_simulator',
+                    customerInfo
+                })
+            }
+        });
+
+        console.log('✅ Checkout created:', checkout.id);
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                checkoutUrl,
+                checkoutId,
+                total: checkout.total,
+                items: items.length
+            }
+        });
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: 'Method not allowed'
     });
 }
