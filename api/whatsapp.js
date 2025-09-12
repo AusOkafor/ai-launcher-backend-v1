@@ -725,16 +725,15 @@ async function handleCheckout(req, res, pathSegments) {
             data: {
                 storeId: store.id,
                 customerId: null, // Will be updated when customer completes checkout
-                shopifyCartId: checkoutId,
-                status: 'CHECKOUT_CREATED',
-                items: JSON.stringify(items),
-                total: items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
-                currency: 'USD',
-                metadata: JSON.stringify({
+                status: 'ACTIVE',
+                items: items,
+                subtotal: items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+                metadata: {
                     checkoutUrl,
+                    checkoutId,
                     source: 'whatsapp_simulator',
                     customerInfo
-                })
+                }
             }
         });
 
@@ -745,7 +744,7 @@ async function handleCheckout(req, res, pathSegments) {
             data: {
                 checkoutUrl,
                 checkoutId,
-                total: checkout.total,
+                total: checkout.subtotal,
                 items: items.length
             }
         });
