@@ -138,10 +138,10 @@ async function handleOrders(req, res, pathSegments) {
         // Build where clause
         const where = {};
         if (source === 'whatsapp') {
-            // For WhatsApp orders, we can filter by metadata or other criteria
+            // For WhatsApp orders, filter by metadata source field
             where.metadata = {
                 path: ['source'],
-                equals: 'whatsapp'
+                equals: 'whatsapp_simulator'
             };
         }
         if (status && status !== 'all') {
