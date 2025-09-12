@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { detectIntent, extractProductDetails, searchProducts } from '../src/utils/whatsapp/openRouterClient.js';
 
 let prisma;
 
@@ -379,9 +378,27 @@ async function handleChat(req, res, pathSegments) {
         console.log('🤖 Processing message:', message);
 
         try {
-            // Detect intent using OpenRouter
-            const intent = await detectIntent(message);
-            console.log('🎯 Detected intent:', intent);
+            // Check if OpenRouter is available
+            let intent = 'other';
+            try {
+                const { detectIntent } = await
+                import ('../src/utils/whatsapp/openRouterClient.js');
+                intent = await detectIntent(message);
+                console.log('🎯 Detected intent:', intent);
+            } catch (error) {
+                console.log('⚠️ OpenRouter not available, using fallback');
+                // Simple rule-based intent detection
+                const lowerMessage = message.toLowerCase();
+                if (lowerMessage.includes('buy') || lowerMessage.includes('want') || lowerMessage.includes('have') || lowerMessage.includes('search')) {
+                    intent = 'product_search';
+                } else if (lowerMessage.includes('order') || lowerMessage.includes('status')) {
+                    intent = 'order_status';
+                } else if (lowerMessage.includes('recommend') || lowerMessage.includes('suggest')) {
+                    intent = 'recommendation';
+                } else {
+                    intent = 'general_question';
+                }
+            }
 
             let response = {};
 
