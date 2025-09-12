@@ -685,3 +685,205 @@ async function handleGeneralQuestion(message, workspaceId) {
         content: 'I\'m here to help you with your shopping needs. You can ask me about products, place orders, or get recommendations!'
     };
 }
+
+// Handle cart endpoints
+async function handleCart(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        // Get cart by sessionId or customerId
+        const { sessionId, customerId, storeId } = req.query;
+
+        if (!storeId) {
+            return res.status(400).json({
+                success: false,
+                error: 'storeId is required'
+            });
+        }
+
+        const cart = await prisma.cart.findFirst({
+            where: {
+                storeId,
+                ...(sessionId && { metadata: { path: ['sessionId'], equals: sessionId } }),
+                ...(customerId && { customerId }),
+                status: 'ACTIVE'
+            },
+            include: {
+                store: {
+                    select: {
+                        name: true,
+                        domain: true
+                    }
+                }
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: { cart: cart || null }
+        });
+
+    } else if (req.method === 'POST') {
+        // Add item to cart or create new cart
+        const {
+            storeId,
+            sessionId,
+            customerId,
+            items,
+            subtotal
+        } = req.body;
+
+        if (!storeId || !items || !Array.isArray(items)) {
+            return res.status(400).json({
+                success: false,
+                error: 'storeId and items array are required'
+            });
+        }
+
+        // Find existing cart
+        let cart = await prisma.cart.findFirst({
+            where: {
+                storeId,
+                ...(sessionId && { metadata: { path: ['sessionId'], equals: sessionId } }),
+                ...(customerId && { customerId }),
+                status: 'ACTIVE'
+            }
+        });
+
+        if (cart) {
+            // Update existing cart
+            cart = await prisma.cart.update({
+                where: { id: cart.id },
+                data: {
+                    items: items,
+                    subtotal: subtotal || 0,
+                    updatedAt: new Date()
+                }
+            });
+        } else {
+            // Create new cart
+            cart = await prisma.cart.create({
+                data: {
+                    storeId,
+                    customerId,
+                    items: items,
+                    subtotal: subtotal || 0,
+                    status: 'ACTIVE',
+                    metadata: sessionId ? { sessionId } : null
+                }
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: { cart },
+            message: 'Cart updated successfully'
+        });
+
+    } else if (req.method === 'DELETE') {
+        // Clear cart
+        const { sessionId, customerId, storeId } = req.body;
+
+        if (!storeId) {
+            return res.status(400).json({
+                success: false,
+                error: 'storeId is required'
+            });
+        }
+
+        const cart = await prisma.cart.findFirst({
+            where: {
+                storeId,
+                ...(sessionId && { metadata: { path: ['sessionId'], equals: sessionId } }),
+                ...(customerId && { customerId }),
+                status: 'ACTIVE'
+            }
+        });
+
+        if (cart) {
+            await prisma.cart.update({
+                where: { id: cart.id },
+                data: { status: 'ABANDONED' }
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Cart cleared successfully'
+        });
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: 'Method not allowed'
+    });
+}
+
+// Handle checkout endpoints
+async function handleCheckout(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        const { items, customerInfo, storeId } = req.body;
+
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Items array is required'
+            });
+        }
+
+        console.log('🛒 Creating Shopify checkout for items:', items.length);
+
+        // Get store information
+        const store = await prisma.store.findUnique({
+            where: { id: storeId },
+            include: {
+                shopifyConnection: true
+            }
+        });
+
+        if (!store || !store.shopifyConnection) {
+            return res.status(400).json({
+                success: false,
+                error: 'Store or Shopify connection not found'
+            });
+        }
+
+        // For now, create a mock checkout URL
+        // In production, you would call Shopify's Storefront API
+        const checkoutId = `checkout_${Date.now()}`;
+        const checkoutUrl = `https://${store.domain}/checkout/${checkoutId}`;
+
+        // Store checkout in database for tracking
+        const checkout = await prisma.cart.create({
+            data: {
+                storeId: store.id,
+                customerId: null, // Will be updated when customer completes checkout
+                shopifyCartId: checkoutId,
+                status: 'CHECKOUT_CREATED',
+                items: JSON.stringify(items),
+                total: items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+                currency: 'USD',
+                metadata: JSON.stringify({
+                    checkoutUrl,
+                    source: 'whatsapp_simulator',
+                    customerInfo
+                })
+            }
+        });
+
+        console.log('✅ Checkout created:', checkout.id);
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                checkoutUrl,
+                checkoutId,
+                total: checkout.total,
+                items: items.length
+            }
+        });
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: 'Method not allowed'
+    });
+}
