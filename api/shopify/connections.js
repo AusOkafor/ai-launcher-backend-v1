@@ -71,10 +71,20 @@ export default async function handler(req, res) {
         }
     } else if (req.method === 'DELETE') {
         try {
+            // Get ID from either query parameter or URL path
             const { id } = req.query;
+            const pathId = req.url.split('/').pop(); // Get last segment of URL
+            const connectionId = id || pathId;
+
+            if (!connectionId) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Connection ID is required'
+                });
+            }
 
             await prisma.shopifyConnection.delete({
-                where: { id }
+                where: { id: connectionId }
             });
 
             res.json({
