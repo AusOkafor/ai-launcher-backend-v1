@@ -149,13 +149,12 @@ async function handleChatbots(req, res, pathSegments) {
             }
         }
 
-        // Return chatbots list
+        // Return chatbots list in format expected by current frontend
         const chatbots = [{
             id: 'whatsapp_simulator_bot',
             name: 'WhatsApp Marketplace Bot',
-            description: 'AI-powered product assistant for WhatsApp marketplace',
-            status: 'active',
-            accuracy: 94.2,
+            type: 'Flow-based',
+            status: 'Active',
             conversations: await prisma.order.count({
                 where: {
                     metadata: {
@@ -164,18 +163,12 @@ async function handleChatbots(req, res, pathSegments) {
                     }
                 }
             }),
-            createdAt: new Date().toISOString(),
-            features: [
-                'Product search and recommendations',
-                'Order processing',
-                'Cart management',
-                'Customer support'
-            ]
+            accuracy: '94%'
         }];
 
         return res.status(200).json({
             success: true,
-            data: { chatbots },
+            data: chatbots,
             timestamp: new Date().toISOString()
         });
     }
