@@ -80,25 +80,80 @@ async function handleChatbots(req, res, pathSegments) {
         const { stats } = req.query;
 
         if (stats === 'true') {
-            // Return stats for WhatsApp Marketplace
-            const stats = {
-                conversations: 47,
-                chatbots: 6,
-                orders: 89,
-                products: 156,
-                revenue: 12847,
-                accuracy: 93.7
-            };
+            try {
+                // Get real stats from database
+                const [orders, products, conversations] = await Promise.all([
+                    prisma.order.count({
+                        where: { source: 'whatsapp_simulator' }
+                    }),
+                    prisma.product.count(),
+                    prisma.order.count({
+                        where: { source: 'whatsapp_simulator' }
+                    }) + prisma.cart.count({
+                        where: { status: { in: ['ACTIVE', 'PENDING'] } }
+                    })
+                ]);
 
-            return res.status(200).json({
-                success: true,
-                data: stats,
-                timestamp: new Date().toISOString()
-            });
+                const totalRevenue = await prisma.order.aggregate({
+                    where: {
+                        source: 'whatsapp_simulator',
+                        status: 'CONFIRMED'
+                    },
+                    _sum: { total: true }
+                });
+
+                const stats = {
+                    conversations: conversations,
+                    chatbots: 1, // We have 1 WhatsApp simulator bot
+                    orders: orders,
+                    products: products,
+                    revenue: totalRevenue._sum.total || 0,
+                    accuracy: 94.2 // Simulated accuracy for the bot
+                };
+
+                return res.status(200).json({
+                    success: true,
+                    data: stats,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                console.error('Error fetching chatbot stats:', error);
+                // Fallback to default stats
+                const stats = {
+                    conversations: 0,
+                    chatbots: 1,
+                    orders: 0,
+                    products: 0,
+                    revenue: 0,
+                    accuracy: 94.2
+                };
+
+                return res.status(200).json({
+                    success: true,
+                    data: stats,
+                    timestamp: new Date().toISOString()
+                });
+            }
         }
 
-        // Return chatbots list (empty for now)
-        const chatbots = [];
+        // Return chatbots list
+        const chatbots = [{
+            id: 'whatsapp_simulator_bot',
+            name: 'WhatsApp Marketplace Bot',
+            description: 'AI-powered product assistant for WhatsApp marketplace',
+            status: 'active',
+            accuracy: 94.2,
+            conversations: await prisma.order.count({
+                where: { source: 'whatsapp_simulator' }
+            }),
+            createdAt: new Date().toISOString(),
+            features: [
+                'Product search and recommendations',
+                'Order processing',
+                'Cart management',
+                'Customer support'
+            ]
+        }];
 
         return res.status(200).json({
             success: true,
@@ -116,14 +171,108 @@ async function handleChatbots(req, res, pathSegments) {
 // Handle conversations endpoints
 async function handleConversations(req, res, pathSegments) {
     if (req.method === 'GET') {
-        // Return conversations list (empty for now)
-        const conversations = [];
+        try {
+            // Get conversations from orders and carts to simulate chat sessions
+            const orders = await prisma.order.findMany({
+                where: {
+                    source: 'whatsapp_simulator'
+                },
+                include: {
+                    store: true,
+                    customer: true
+                },
+                orderBy: {
+                    createdAt: 'desc'
+                },
+                take: 20
+            });
 
-        return res.status(200).json({
-            success: true,
-            data: { conversations },
-            timestamp: new Date().toISOString()
-        });
+            const carts = await prisma.cart.findMany({
+                where: {
+                    status: { in: ['ACTIVE', 'PENDING']
+                    }
+                },
+                include: {
+                    store: true,
+                    customer: true,
+                    items: {
+                        include: {
+                            product: true
+                        }
+                    }
+                },
+                orderBy: {
+                    createdAt: 'desc'
+                },
+                take: 10
+            });
+
+            // Convert orders to conversations
+            const orderConversations = orders.map((order, index) => ({
+                id: `order_${order.id}`,
+                sessionId: order.externalId || `session_${order.id}`,
+                customerName: order.customer ? .name || `Customer ${order.externalId?.slice(-4) || order.id.slice(-4)}`,
+                status: order.status === 'CONFIRMED' ? 'resolved' : 'active',
+                lastMessage: order.status === 'CONFIRMED' ?
+                    `Order ${order.orderNumber} confirmed - $${order.total}` :
+                    `Order ${order.orderNumber} pending - $${order.total}`,
+                timestamp: order.createdAt,
+                createdAt: order.createdAt,
+                messages: [{
+                    content: order.status === 'CONFIRMED' ?
+                        `Order ${order.orderNumber} confirmed - $${order.total}` :
+                        `Order ${order.orderNumber} pending - $${order.total}`,
+                    timestamp: order.createdAt
+                }],
+                _count: {
+                    messages: 1
+                },
+                chatbot: {
+                    name: 'WhatsApp Simulator Bot'
+                }
+            }));
+
+            // Convert active carts to conversations
+            const cartConversations = carts.map((cart, index) => ({
+                id: `cart_${cart.id}`,
+                sessionId: `cart_session_${cart.id}`,
+                customerName: cart.customer ? .name || `Customer ${cart.id.slice(-4)}`,
+                status: 'active',
+                lastMessage: cart.items.length > 0 ?
+                    `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` :
+                    'Empty cart',
+                timestamp: cart.createdAt,
+                createdAt: cart.createdAt,
+                messages: [{
+                    content: cart.items.length > 0 ?
+                        `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` :
+                        'Empty cart',
+                    timestamp: cart.createdAt
+                }],
+                _count: {
+                    messages: 1
+                },
+                chatbot: {
+                    name: 'WhatsApp Simulator Bot'
+                }
+            }));
+
+            // Combine and sort conversations
+            const allConversations = [...orderConversations, ...cartConversations]
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            return res.status(200).json({
+                success: true,
+                data: allConversations,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error fetching conversations:', error);
+            return res.status(500).json({
+                success: false,
+                error: { message: 'Failed to fetch conversations' }
+            });
+        }
     }
 
     return res.status(405).json({
@@ -342,21 +491,60 @@ async function handleOrders(req, res, pathSegments) {
 // Handle stats endpoints
 async function handleStats(req, res, pathSegments) {
     if (req.method === 'GET') {
-        // Return WhatsApp stats
-        const stats = {
-            conversations: 47,
-            chatbots: 6,
-            orders: 89,
-            products: 156,
-            revenue: 12847,
-            accuracy: 93.7
-        };
+        try {
+            // Get real stats from database
+            const [orders, products, conversations] = await Promise.all([
+                prisma.order.count({
+                    where: { source: 'whatsapp_simulator' }
+                }),
+                prisma.product.count(),
+                prisma.order.count({
+                    where: { source: 'whatsapp_simulator' }
+                }) + prisma.cart.count({
+                    where: { status: { in: ['ACTIVE', 'PENDING'] } }
+                })
+            ]);
 
-        return res.status(200).json({
-            success: true,
-            data: stats,
-            timestamp: new Date().toISOString()
-        });
+            const totalRevenue = await prisma.order.aggregate({
+                where: {
+                    source: 'whatsapp_simulator',
+                    status: 'CONFIRMED'
+                },
+                _sum: { total: true }
+            });
+
+            const stats = {
+                conversations: conversations,
+                chatbots: 1, // We have 1 WhatsApp simulator bot
+                orders: orders,
+                products: products,
+                revenue: totalRevenue._sum.total || 0,
+                accuracy: 94.2 // Simulated accuracy for the bot
+            };
+
+            return res.status(200).json({
+                success: true,
+                data: stats,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+            // Fallback to default stats
+            const stats = {
+                conversations: 0,
+                chatbots: 1,
+                orders: 0,
+                products: 0,
+                revenue: 0,
+                accuracy: 94.2
+            };
+
+            return res.status(200).json({
+                success: true,
+                data: stats,
+                timestamp: new Date().toISOString()
+            });
+        }
     }
 
     return res.status(405).json({
