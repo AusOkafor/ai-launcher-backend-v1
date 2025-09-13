@@ -715,11 +715,11 @@ async function handleCheckout(req, res, pathSegments) {
             });
         }
 
-        // Create real Shopify checkout URL
-        // In production, you would call Shopify's Storefront API to create a real checkout
+        // Create mock checkout URL for simulator
+        // This bypasses the need for real Shopify app installation
         const checkoutId = `checkout_${Date.now()}`;
-        // Use the actual store's checkout URL
-        const checkoutUrl = `https://${store.domain}/checkout/${checkoutId}`;
+        // Generate a mock checkout URL that will redirect to our simulator
+        const checkoutUrl = `https://ai-launcher-backend-v1.vercel.app/api/checkout-simulator?checkout_id=${checkoutId}&store=${store.domain}`;
 
         // Store checkout in database for tracking
         const checkout = await prisma.cart.create({

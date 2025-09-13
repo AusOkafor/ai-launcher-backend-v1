@@ -71,25 +71,85 @@ export default async function handler(req, res) {
         }
     } else if (req.method === 'DELETE') {
         try {
-            // Get ID from either query parameter or URL path
             const { id } = req.query;
-            const pathId = req.url.split('/').pop(); // Get last segment of URL
-            const connectionId = id || pathId;
 
-            if (!connectionId) {
+            if (!id) {
                 return res.status(400).json({
                     success: false,
                     error: 'Connection ID is required'
                 });
             }
 
+            // First, get the connection to find the associated store
+            const connection = await prisma.shopifyConnection.findUnique({
+                where: { id },
+                include: { store: true }
+            });
+
+            if (!connection) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Connection not found'
+                });
+            }
+
+            const storeId = connection.storeId;
+
+            // If there's an associated store, clean up all related data
+            if (storeId) {
+                console.log(`🧹 Cleaning up all data for store: ${storeId}`);
+
+                // Delete in order to respect foreign key constraints
+                // 1. Delete cart items first (they reference products)
+                await prisma.cartItem.deleteMany({
+                    where: {
+                        cart: { storeId }
+                    }
+                });
+
+                // 2. Delete carts
+                await prisma.cart.deleteMany({
+                    where: { storeId }
+                });
+
+                // 3. Delete orders
+                await prisma.order.deleteMany({
+                    where: { storeId }
+                });
+
+                // 4. Delete customers
+                await prisma.customer.deleteMany({
+                    where: { storeId }
+                });
+
+                // 5. Delete product variants first (they reference products)
+                await prisma.variant.deleteMany({
+                    where: {
+                        product: { storeId }
+                    }
+                });
+
+                // 6. Delete products
+                await prisma.product.deleteMany({
+                    where: { storeId }
+                });
+
+                // 7. Delete the store
+                await prisma.store.delete({
+                    where: { id: storeId }
+                });
+
+                console.log(`✅ Successfully cleaned up all data for store: ${storeId}`);
+            }
+
+            // Finally, delete the Shopify connection
             await prisma.shopifyConnection.delete({
-                where: { id: connectionId }
+                where: { id }
             });
 
             res.json({
                 success: true,
-                message: 'Connection disconnected successfully'
+                message: 'Connection and all associated data disconnected successfully'
             });
         } catch (error) {
             console.error('Error disconnecting connection:', error);

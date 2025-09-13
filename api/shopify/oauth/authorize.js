@@ -4,7 +4,7 @@ export default async function handler(req, res) {
     console.log('Method:', req.method);
     console.log('Query:', req.query);
     console.log('Timestamp:', new Date().toISOString());
-    
+
     try {
         if (req.method !== 'GET') {
             console.log('Method not allowed:', req.method);
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
         // Get environment variables
         const clientId = process.env.SHOPIFY_CLIENT_ID;
         const redirectUri = process.env.SHOPIFY_REDIRECT_URI || 'https://ai-launcher-backend-v1.vercel.app/api/shopify/oauth/callback';
-        const scopes = process.env.SHOPIFY_SCOPES || 'read_products,write_products,read_orders,write_orders,read_customers,write_customers';
+        const scopes = process.env.SHOPIFY_SCOPES || 'read_products,write_products,read_orders,write_orders,read_customers,write_customers,read_discounts,write_discounts,read_price_rules,write_price_rules,read_returns,write_returns,write_cart_transforms,read_cart_transforms';
 
         console.log('Environment check:');
         console.log('- SHOPIFY_CLIENT_ID:', clientId ? 'SET' : 'NOT SET');
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
             cause: error.cause,
             code: error.code
         });
-        
+
         res.status(500).json({
             success: false,
             error: 'Failed to initiate OAuth flow',
