@@ -211,17 +211,15 @@ async function handleConversations(req, res, pathSegments) {
             const orderConversations = orders.map((order, index) => ({
                 id: `order_${order.id}`,
                 sessionId: order.externalId || `session_${order.id}`,
-                customerName: order.customer ? .name || `Customer ${order.externalId?.slice(-4) || order.id.slice(-4)}`,
+                customerName: order.customer && order.customer.name || `Customer ${order.externalId && order.externalId.slice(-4) || order.id.slice(-4)}`,
                 status: order.status === 'CONFIRMED' ? 'resolved' : 'active',
                 lastMessage: order.status === 'CONFIRMED' ?
-                    `Order ${order.orderNumber} confirmed - $${order.total}` :
-                    `Order ${order.orderNumber} pending - $${order.total}`,
+                    `Order ${order.orderNumber} confirmed - $${order.total}` : `Order ${order.orderNumber} pending - $${order.total}`,
                 timestamp: order.createdAt,
                 createdAt: order.createdAt,
                 messages: [{
                     content: order.status === 'CONFIRMED' ?
-                        `Order ${order.orderNumber} confirmed - $${order.total}` :
-                        `Order ${order.orderNumber} pending - $${order.total}`,
+                        `Order ${order.orderNumber} confirmed - $${order.total}` : `Order ${order.orderNumber} pending - $${order.total}`,
                     timestamp: order.createdAt
                 }],
                 _count: {
@@ -236,17 +234,15 @@ async function handleConversations(req, res, pathSegments) {
             const cartConversations = carts.map((cart, index) => ({
                 id: `cart_${cart.id}`,
                 sessionId: `cart_session_${cart.id}`,
-                customerName: cart.customer ? .name || `Customer ${cart.id.slice(-4)}`,
+                customerName: cart.customer && cart.customer.name || `Customer ${cart.id.slice(-4)}`,
                 status: 'active',
                 lastMessage: cart.items.length > 0 ?
-                    `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` :
-                    'Empty cart',
+                    `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
                 timestamp: cart.createdAt,
                 createdAt: cart.createdAt,
                 messages: [{
                     content: cart.items.length > 0 ?
-                        `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` :
-                        'Empty cart',
+                        `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
                     timestamp: cart.createdAt
                 }],
                 _count: {
