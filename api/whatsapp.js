@@ -57,6 +57,8 @@ export default async function handler(req, res) {
             return handleCart(req, res, pathSegments);
         } else if (pathSegments[0] === 'checkout') {
             return handleCheckout(req, res, pathSegments);
+        } else if (pathSegments[0] === 'checkout-simulator') {
+            return handleCheckoutSimulator(req, res, pathSegments);
         }
 
         return res.status(404).json({
@@ -719,7 +721,7 @@ async function handleCheckout(req, res, pathSegments) {
         // This bypasses the need for real Shopify app installation
         const checkoutId = `checkout_${Date.now()}`;
         // Generate a mock checkout URL that will redirect to our simulator
-        const checkoutUrl = `https://ai-launcher-backend-v1.vercel.app/api/checkout-simulator?checkout_id=${checkoutId}&store=${store.domain}`;
+        const checkoutUrl = `https://ai-launcher-backend-v1.vercel.app/api/whatsapp?path=checkout-simulator/page&checkout_id=${checkoutId}&store=${store.domain}`;
 
         // Store checkout in database for tracking
         const checkout = await prisma.cart.create({
