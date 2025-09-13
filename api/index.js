@@ -16,6 +16,7 @@ export default async function handler(req, res) {
     const origin = req.headers.origin || '*'
     const allowed = [
         'http://localhost:8080',
+        'http://localhost:8081',
         'http://localhost:3000',
         'http://localhost:3001',
         'https://stratosphere-ecom-ai.vercel.app',
