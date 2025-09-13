@@ -715,11 +715,11 @@ async function handleCheckout(req, res, pathSegments) {
             });
         }
 
-        // For now, create a mock checkout URL
-        // In production, you would call Shopify's Storefront API
+        // Create real Shopify checkout URL
+        // In production, you would call Shopify's Storefront API to create a real checkout
         const checkoutId = `checkout_${Date.now()}`;
-        // Create a demo checkout URL for WhatsApp simulator
-        const checkoutUrl = `https://demo-checkout.shopify.com/whatsapp-simulator/${checkoutId}?store=${store.domain}&demo=true`;
+        // Use the actual store's checkout URL
+        const checkoutUrl = `https://${store.domain}/checkout/${checkoutId}`;
 
         // Store checkout in database for tracking
         const checkout = await prisma.cart.create({
