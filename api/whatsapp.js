@@ -84,19 +84,32 @@ async function handleChatbots(req, res, pathSegments) {
                 // Get real stats from database
                 const [orders, products, conversations] = await Promise.all([
                     prisma.order.count({
-                        where: { source: 'whatsapp_simulator' }
+                        where: {
+                            metadata: {
+                                path: ['source'],
+                                equals: 'whatsapp_simulator'
+                            }
+                        }
                     }),
                     prisma.product.count(),
                     prisma.order.count({
-                        where: { source: 'whatsapp_simulator' }
+                        where: {
+                            metadata: {
+                                path: ['source'],
+                                equals: 'whatsapp_simulator'
+                            }
+                        }
                     }) + prisma.cart.count({
-                        where: { status: { in: ['ACTIVE', 'PENDING'] } }
+                        where: { status: { in: ['ACTIVE', 'CHECKOUT_STARTED'] } }
                     })
                 ]);
 
                 const totalRevenue = await prisma.order.aggregate({
                     where: {
-                        source: 'whatsapp_simulator',
+                        metadata: {
+                            path: ['source'],
+                            equals: 'whatsapp_simulator'
+                        },
                         status: 'CONFIRMED'
                     },
                     _sum: { total: true }
@@ -144,7 +157,12 @@ async function handleChatbots(req, res, pathSegments) {
             status: 'active',
             accuracy: 94.2,
             conversations: await prisma.order.count({
-                where: { source: 'whatsapp_simulator' }
+                where: {
+                    metadata: {
+                        path: ['source'],
+                        equals: 'whatsapp_simulator'
+                    }
+                }
             }),
             createdAt: new Date().toISOString(),
             features: [
@@ -175,7 +193,10 @@ async function handleConversations(req, res, pathSegments) {
             // Get conversations from orders and carts to simulate chat sessions
             const orders = await prisma.order.findMany({
                 where: {
-                    source: 'whatsapp_simulator'
+                    metadata: {
+                        path: ['source'],
+                        equals: 'whatsapp_simulator'
+                    }
                 },
                 include: {
                     store: true,
@@ -189,16 +210,11 @@ async function handleConversations(req, res, pathSegments) {
 
             const carts = await prisma.cart.findMany({
                 where: {
-                    status: { in: ['ACTIVE', 'PENDING'] }
+                    status: { in: ['ACTIVE', 'CHECKOUT_STARTED'] }
                 },
                 include: {
                     store: true,
-                    customer: true,
-                    items: {
-                        include: {
-                            product: true
-                        }
-                    }
+                    customer: true
                 },
                 orderBy: {
                     createdAt: 'desc'
@@ -230,27 +246,30 @@ async function handleConversations(req, res, pathSegments) {
             }));
 
             // Convert active carts to conversations
-            const cartConversations = carts.map((cart, index) => ({
-                id: `cart_${cart.id}`,
-                sessionId: `cart_session_${cart.id}`,
-                customerName: cart.customer && cart.customer.name || `Customer ${cart.id.slice(-4)}`,
-                status: 'active',
-                lastMessage: cart.items.length > 0 ?
-                    `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
-                timestamp: cart.createdAt,
-                createdAt: cart.createdAt,
-                messages: [{
-                    content: cart.items.length > 0 ?
-                        `Cart with ${cart.items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
-                    timestamp: cart.createdAt
-                }],
-                _count: {
-                    messages: 1
-                },
-                chatbot: {
-                    name: 'WhatsApp Simulator Bot'
-                }
-            }));
+            const cartConversations = carts.map((cart, index) => {
+                const items = Array.isArray(cart.items) ? cart.items : [];
+                return {
+                    id: `cart_${cart.id}`,
+                    sessionId: `cart_session_${cart.id}`,
+                    customerName: cart.customer && cart.customer.name || `Customer ${cart.id.slice(-4)}`,
+                    status: 'active',
+                    lastMessage: items.length > 0 ?
+                        `Cart with ${items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
+                    timestamp: cart.createdAt,
+                    createdAt: cart.createdAt,
+                    messages: [{
+                        content: items.length > 0 ?
+                            `Cart with ${items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
+                        timestamp: cart.createdAt
+                    }],
+                    _count: {
+                        messages: 1
+                    },
+                    chatbot: {
+                        name: 'WhatsApp Simulator Bot'
+                    }
+                };
+            });
 
             // Combine and sort conversations
             const allConversations = [...orderConversations, ...cartConversations]
@@ -490,11 +509,21 @@ async function handleStats(req, res, pathSegments) {
             // Get real stats from database
             const [orders, products, conversations] = await Promise.all([
                 prisma.order.count({
-                    where: { source: 'whatsapp_simulator' }
+                    where: {
+                        metadata: {
+                            path: ['source'],
+                            equals: 'whatsapp_simulator'
+                        }
+                    }
                 }),
                 prisma.product.count(),
                 prisma.order.count({
-                    where: { source: 'whatsapp_simulator' }
+                    where: {
+                        metadata: {
+                            path: ['source'],
+                            equals: 'whatsapp_simulator'
+                        }
+                    }
                 }) + prisma.cart.count({
                     where: { status: { in: ['ACTIVE', 'PENDING'] } }
                 })
@@ -502,7 +531,10 @@ async function handleStats(req, res, pathSegments) {
 
             const totalRevenue = await prisma.order.aggregate({
                 where: {
-                    source: 'whatsapp_simulator',
+                    metadata: {
+                        path: ['source'],
+                        equals: 'whatsapp_simulator'
+                    },
                     status: 'CONFIRMED'
                 },
                 _sum: { total: true }
@@ -917,7 +949,10 @@ async function handleCheckout(req, res, pathSegments) {
                 metadata: {
                     checkoutUrl,
                     checkoutId,
-                    source: 'whatsapp_simulator',
+                    metadata: {
+                        path: ['source'],
+                        equals: 'whatsapp_simulator'
+                    },
                     customerInfo
                 }
             }
