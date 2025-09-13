@@ -189,8 +189,7 @@ async function handleConversations(req, res, pathSegments) {
 
             const carts = await prisma.cart.findMany({
                 where: {
-                    status: { in: ['ACTIVE', 'PENDING']
-                    }
+                    status: { in: ['ACTIVE', 'PENDING'] }
                 },
                 include: {
                     store: true,
