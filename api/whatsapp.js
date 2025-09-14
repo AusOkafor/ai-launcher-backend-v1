@@ -492,6 +492,7 @@ async function handleChatbots(req, res, pathSegments) {
 // Helper function to search for specific products based on user query
 async function searchSpecificProducts(message) {
     const lowerMessage = message.toLowerCase();
+    console.log('🔍 Searching for products with message:', message);
 
     // Define category mappings
     const categoryMappings = {
@@ -515,12 +516,14 @@ async function searchSpecificProducts(message) {
     let matchingCategories = [];
     for (const [keyword, categories] of Object.entries(categoryMappings)) {
         if (lowerMessage.includes(keyword)) {
+            console.log('🎯 Found keyword match:', keyword, '-> categories:', categories);
             matchingCategories = [...matchingCategories, ...categories];
         }
     }
 
     // Remove duplicates
     matchingCategories = [...new Set(matchingCategories)];
+    console.log('📋 Final matching categories:', matchingCategories);
 
     if (matchingCategories.length > 0) {
         // Search for products in matching categories
@@ -539,12 +542,15 @@ async function searchSpecificProducts(message) {
         });
 
         if (products.length > 0) {
+            console.log('✅ Found', products.length, 'products in categories:', matchingCategories);
             let response = `Great! I found some products that match your search for "${message}":\n\n`;
             products.forEach((product, index) => {
                 response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
             });
             response += "Type the product name or number to view details!";
             return response;
+        } else {
+            console.log('❌ No products found in categories:', matchingCategories);
         }
     }
 
@@ -684,9 +690,13 @@ async function handleFlowBot(chatbot, message, sessionId) {
         lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do')) {
 
         // Try to find specific products first
+        console.log('🤖 Flow bot: Attempting specific product search for:', message);
         const specificProducts = await searchSpecificProducts(message);
         if (specificProducts) {
+            console.log('✅ Flow bot: Found specific products, returning filtered results');
             return specificProducts;
+        } else {
+            console.log('❌ Flow bot: No specific products found, showing all products');
         }
 
         // If no specific products found, show all products
