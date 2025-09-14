@@ -159,13 +159,38 @@ function calculateUserEngagement(orders, carts) {
 function calculateRevenueConversion(orders, carts) {
     const totalInteractions = orders.length + carts.length;
     if (totalInteractions === 0) return 85.0;
-
+    
     // Count interactions that generated revenue
-    const revenueGeneratingInteractions = orders.filter(order =>
+    const revenueGeneratingInteractions = orders.filter(order => 
         order.total && parseFloat(order.total) > 0
     ).length;
-
+    
     return (revenueGeneratingInteractions / totalInteractions) * 100;
+}
+
+// Function to update chatbot metrics when it's used
+async function updateChatbotMetrics(chatbotId, interactionType = 'conversation') {
+    try {
+        const chatbot = await prisma.chatbot.findUnique({
+            where: { id: chatbotId }
+        });
+
+        if (!chatbot) return;
+
+        // Update conversation count
+        await prisma.chatbot.update({
+            where: { id: chatbotId },
+            data: {
+                totalConversations: chatbot.totalConversations + 1,
+                // You can add more sophisticated accuracy calculation here
+                // For now, we'll keep it simple
+            }
+        });
+
+        console.log(`Updated metrics for chatbot ${chatbotId}: +1 ${interactionType}`);
+    } catch (error) {
+        console.error('Error updating chatbot metrics:', error);
+    }
 }
 
 export default async function handler(req, res) {
@@ -345,9 +370,21 @@ async function handleChatbots(req, res, pathSegments) {
             name: chatbot.name,
             type: chatbot.type === 'FLOW' ? 'Flow-based' : 'Prompt-based',
             status: chatbot.isActive ? 'Active' : 'Paused',
-            conversations: chatbot.totalConversations || conversations,
-            accuracy: chatbot.accuracy ? `${chatbot.accuracy.toFixed(1)}%` : accuracyMetrics.overallAccuracy,
-            accuracyBreakdown: accuracyMetrics.breakdown
+            conversations: chatbot.totalConversations || 0, // Use actual DB value, default to 0
+            accuracy: chatbot.accuracy ? `${chatbot.accuracy.toFixed(1)}%` : '0.0%', // Use actual DB value, default to 0%
+            accuracyBreakdown: chatbot.accuracy ? {
+                orderCompletion: `${chatbot.accuracy.toFixed(1)}%`,
+                intentRecognition: `${chatbot.accuracy.toFixed(1)}%`,
+                responseRelevance: `${chatbot.accuracy.toFixed(1)}%`,
+                userEngagement: `${chatbot.accuracy.toFixed(1)}%`,
+                revenueConversion: `${chatbot.accuracy.toFixed(1)}%`
+            } : {
+                orderCompletion: '0.0%',
+                intentRecognition: '0.0%',
+                responseRelevance: '0.0%',
+                userEngagement: '0.0%',
+                revenueConversion: '0.0%'
+            }
         }));
 
         return res.status(200).json({
