@@ -565,18 +565,60 @@ async function handleBotInteraction(req, res, pathSegments) {
 
 // Handle flow-based bot interactions
 async function handleFlowBot(chatbot, message, sessionId) {
-    // For now, return a simple response based on the message
     const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('product') || lowerMessage.includes('browse')) {
-        return "Great! I can help you browse our products. What category are you interested in?\n\n1. Electronics\n2. Clothing\n3. Books\n4. Home & Garden";
-    } else if (lowerMessage.includes('order') || lowerMessage.includes('track')) {
-        return "I can help you track your order. Please provide your order number or email address.";
-    } else if (lowerMessage.includes('support') || lowerMessage.includes('help')) {
-        return "I'm here to help! What can I assist you with today?\n\n• Product questions\n• Order support\n• Returns & exchanges\n• General inquiries";
-    } else {
-        return `Hello! I'm ${chatbot.name}. How can I help you today?\n\nYou can:\n• Browse products\n• Track your order\n• Get support\n\nJust let me know what you need!`;
+
+    // Handle help command
+    if (lowerMessage.includes('help')) {
+        return "Here's what I can help you with:\n\n• Search for products (e.g., 'I want to buy a smartwatch')\n• Ask about products (e.g., 'Do you have phones?')\n• Type 'cart' to view your cart\n• Type 'order' to checkout\n• Type 'help' for this menu";
     }
+
+    // Handle cart command
+    if (lowerMessage.includes('cart') || lowerMessage.includes('basket')) {
+        return "Your cart is empty! Search for products or type 'products' to see what we have available.";
+    }
+
+    // Handle product search
+    if (lowerMessage.includes('product') || lowerMessage.includes('browse') ||
+        lowerMessage.includes('what do you have') || lowerMessage.includes('in stock') ||
+        lowerMessage.includes('fitness') || lowerMessage.includes('buy') ||
+        lowerMessage.includes('looking for') || lowerMessage.includes('want')) {
+
+        // Get products from database
+        const products = await prisma.product.findMany({
+            take: 20,
+            select: {
+                id: true,
+                title: true,
+                price: true,
+                category: true
+            }
+        });
+
+        if (products.length === 0) {
+            return "Sorry, no products are available right now. Please make sure you have connected a Shopify store and synced products.";
+        }
+
+        let productList = "Here are our available products:\n";
+        products.forEach((product, index) => {
+            productList += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
+        });
+
+        if (products.length >= 20) {
+            productList += "... and more products\n";
+        }
+
+        productList += "Type the product name or number to view details!";
+
+        return productList;
+    }
+
+    // Handle order command
+    if (lowerMessage.includes('order') || lowerMessage.includes('checkout')) {
+        return "To place an order, first add some products to your cart by searching for them, then type 'order' to checkout!";
+    }
+
+    // Default response
+    return `Hello! I'm ${chatbot.name}. How can I help you today?\n\nYou can:\n• Search for products\n• Ask about our inventory\n• Get help with orders\n\nJust let me know what you need!`;
 }
 
 // Handle prompt-based bot interactions
@@ -586,18 +628,72 @@ async function handlePromptBot(chatbot, message) {
     }
 
     const promptBot = chatbot.prompts[0];
-    
-    // For now, return a simple AI-like response
-    // In a real implementation, you'd call your AI service here
     const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('product') || lowerMessage.includes('buy')) {
-        return "I'd be happy to help you find the perfect product! Based on your message, it sounds like you're looking to make a purchase. Let me search our catalog for you. What specific type of product are you interested in?";
-    } else if (lowerMessage.includes('price') || lowerMessage.includes('cost')) {
-        return "I can help you with pricing information! Our products range from budget-friendly options to premium items. Could you tell me which product you're interested in so I can give you the exact price?";
-    } else {
-        return `Hello! I'm ${chatbot.name}, your AI shopping assistant. I'm here to help you find products, answer questions, and make your shopping experience great! What can I help you with today?`;
+
+    // Handle help command
+    if (lowerMessage.includes('help')) {
+        return "Here's what I can help you with:\n\n• Search for products (e.g., 'I want to buy a smartwatch')\n• Ask about products (e.g., 'Do you have phones?')\n• Type 'cart' to view your cart\n• Type 'order' to checkout\n• Type 'help' for this menu";
     }
+
+    // Handle cart command
+    if (lowerMessage.includes('cart') || lowerMessage.includes('basket')) {
+        return "Your cart is empty! Search for products or type 'products' to see what we have available.";
+    }
+
+    // Handle product search with AI-like responses
+    if (lowerMessage.includes('product') || lowerMessage.includes('buy') ||
+        lowerMessage.includes('what do you have') || lowerMessage.includes('in stock') ||
+        lowerMessage.includes('fitness') || lowerMessage.includes('looking for') ||
+        lowerMessage.includes('want') || lowerMessage.includes('anything for')) {
+
+        // Get products from database
+        const products = await prisma.product.findMany({
+            take: 20,
+            select: {
+                id: true,
+                title: true,
+                price: true,
+                category: true
+            }
+        });
+
+        if (products.length === 0) {
+            return "I'd love to help you find products, but it looks like our catalog is currently empty. Please make sure products have been synced from your Shopify store.";
+        }
+
+        // AI-like response with product suggestions
+        let response = "I'd be happy to help you find the perfect products! ";
+
+        if (lowerMessage.includes('fitness')) {
+            response += "For fitness, I'd recommend our outdoor and activewear items. ";
+        } else if (lowerMessage.includes('clothing') || lowerMessage.includes('wear')) {
+            response += "We have a great selection of clothing items. ";
+        } else if (lowerMessage.includes('bag') || lowerMessage.includes('backpack')) {
+            response += "We have several stylish bags and backpacks available. ";
+        }
+
+        response += "Here are our available products:\n\n";
+
+        products.forEach((product, index) => {
+            response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
+        });
+
+        if (products.length >= 20) {
+            response += "... and more products\n";
+        }
+
+        response += "Type the product name or number to view details!";
+
+        return response;
+    }
+
+    // Handle order command
+    if (lowerMessage.includes('order') || lowerMessage.includes('checkout')) {
+        return "I'd be happy to help you place an order! First, let's add some products to your cart by searching for them, then we can proceed to checkout.";
+    }
+
+    // Default AI-like response
+    return `Hello! I'm ${chatbot.name}, your AI shopping assistant. I'm here to help you find products, answer questions, and make your shopping experience great! What can I help you with today?`;
 }
 
 // Handle conversations endpoints
