@@ -802,15 +802,16 @@ async function handleBotInteraction(req, res, pathSegments) {
         try {
             const { botId, message, userId, sessionId } = req.body;
 
-            // Get or create conversation context
-            const context = await getOrCreateConversationContext(sessionId, botId);
-
             if (!botId || !message) {
                 return res.status(400).json({
                     success: false,
                     error: { message: 'Bot ID and message are required' }
                 });
             }
+
+            // Get or create conversation context (use default sessionId if not provided)
+            const contextSessionId = sessionId || `default-${userId || 'anonymous'}-${Date.now()}`;
+            const context = await getOrCreateConversationContext(contextSessionId, botId);
 
             // Get the chatbot
             const chatbot = await prisma.chatbot.findUnique({
@@ -833,7 +834,7 @@ async function handleBotInteraction(req, res, pathSegments) {
 
             if (chatbot.type === 'FLOW') {
                 // Handle flow-based bot with context
-                response = await handleFlowBot(chatbot, message, sessionId, context);
+                response = await handleFlowBot(chatbot, message, contextSessionId, context);
             } else if (chatbot.type === 'PROMPT') {
                 // Handle prompt-based bot with context
                 response = await handlePromptBot(chatbot, message, context);
