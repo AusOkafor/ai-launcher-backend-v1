@@ -596,11 +596,100 @@ async function searchSpecificProducts(message) {
     return null; // No specific products found
 }
 
+// Detect conversation topic from message
+function detectTopic(message) {
+    const lowerMessage = message.toLowerCase();
+
+    if (lowerMessage.includes('fitness') || lowerMessage.includes('equipment') || lowerMessage.includes('workout')) {
+        return 'fitness';
+    } else if (lowerMessage.includes('jewelry') || lowerMessage.includes('earrings') || lowerMessage.includes('necklace') || lowerMessage.includes('ring')) {
+        return 'jewelry';
+    } else if (lowerMessage.includes('clothing') || lowerMessage.includes('shirt') || lowerMessage.includes('dress') || lowerMessage.includes('jacket')) {
+        return 'clothing';
+    } else if (lowerMessage.includes('outdoor') || lowerMessage.includes('camping') || lowerMessage.includes('hiking')) {
+        return 'outdoor';
+    } else if (lowerMessage.includes('bag') || lowerMessage.includes('backpack')) {
+        return 'bags';
+    } else if (lowerMessage.includes('home') || lowerMessage.includes('decor')) {
+        return 'home';
+    } else if (lowerMessage.includes('price') || lowerMessage.includes('cost') || lowerMessage.includes('expensive')) {
+        return 'pricing';
+    } else if (lowerMessage.includes('cart') || lowerMessage.includes('basket')) {
+        return 'cart';
+    } else if (lowerMessage.includes('order') || lowerMessage.includes('checkout') || lowerMessage.includes('buy')) {
+        return 'ordering';
+    } else if (lowerMessage.includes('help') || lowerMessage.includes('support')) {
+        return 'help';
+    }
+
+    return 'general';
+}
+
+// Get or create conversation context for memory
+async function getOrCreateConversationContext(sessionId, botId) {
+    try {
+        // Try to get existing conversation
+        let conversation = await prisma.conversation.findFirst({
+            where: {
+                sessionId: sessionId,
+                chatbotId: botId,
+                status: 'ACTIVE'
+            }
+        });
+
+        if (!conversation) {
+            // Create new conversation
+            conversation = await prisma.conversation.create({
+                data: {
+                    sessionId: sessionId,
+                    chatbotId: botId,
+                    status: 'ACTIVE',
+                    metadata: {
+                        context: {
+                            lastTopic: null,
+                            mentionedProducts: [],
+                            userPreferences: {},
+                            conversationFlow: []
+                        }
+                    }
+                }
+            });
+        }
+
+        return conversation;
+    } catch (error) {
+        console.error('Error getting conversation context:', error);
+        return null;
+    }
+}
+
+// Update conversation context
+async function updateConversationContext(sessionId, botId, newContext) {
+    try {
+        await prisma.conversation.updateMany({
+            where: {
+                sessionId: sessionId,
+                chatbotId: botId,
+                status: 'ACTIVE'
+            },
+            data: {
+                metadata: newContext,
+                lastActiveAt: new Date()
+            }
+        });
+    } catch (error) {
+        console.error('Error updating conversation context:', error);
+    }
+}
+
 // Handle bot interaction endpoints
 async function handleBotInteraction(req, res, pathSegments) {
     if (req.method === 'POST') {
         try {
             const { botId, message, userId, sessionId } = req.body;
+
+            // Get or create conversation context
+            const context = await getOrCreateConversationContext(sessionId, botId);
 
             if (!botId || !message) {
                 return res.status(400).json({
@@ -629,11 +718,11 @@ async function handleBotInteraction(req, res, pathSegments) {
             let nextNodeId = null;
 
             if (chatbot.type === 'FLOW') {
-                // Handle flow-based bot
-                response = await handleFlowBot(chatbot, message, sessionId);
+                // Handle flow-based bot with context
+                response = await handleFlowBot(chatbot, message, sessionId, context);
             } else if (chatbot.type === 'PROMPT') {
-                // Handle prompt-based bot
-                response = await handlePromptBot(chatbot, message);
+                // Handle prompt-based bot with context
+                response = await handlePromptBot(chatbot, message, context);
             }
 
             // Update chatbot metrics
@@ -669,8 +758,26 @@ async function handleBotInteraction(req, res, pathSegments) {
 }
 
 // Handle flow-based bot interactions
-async function handleFlowBot(chatbot, message, sessionId) {
+async function handleFlowBot(chatbot, message, sessionId, context = null) {
     const lowerMessage = message.toLowerCase();
+
+    // Extract context information
+    const contextData = context ? .metadata ? .context || {};
+    const lastTopic = contextData.lastTopic;
+    const mentionedProducts = contextData.mentionedProducts || [];
+    const conversationFlow = contextData.conversationFlow || [];
+
+    // Detect conversation flow and topic changes
+    const currentTopic = detectTopic(message);
+    const topicChanged = lastTopic && lastTopic !== currentTopic;
+
+    // Update conversation flow
+    conversationFlow.push({
+        timestamp: new Date().toISOString(),
+        topic: currentTopic,
+        message: message,
+        topicChanged: topicChanged
+    });
 
     // Handle help command
     if (lowerMessage.includes('help')) {
@@ -698,7 +805,25 @@ async function handleFlowBot(chatbot, message, sessionId) {
         const specificProducts = await searchSpecificProducts(message);
         if (specificProducts) {
             console.log('✅ Flow bot: Found specific products, returning filtered results');
-            return specificProducts;
+
+            // Add conversational context
+            let contextualResponse = specificProducts;
+
+            // Add topic change acknowledgment
+            if (topicChanged) {
+                contextualResponse = `I see you're now interested in ${currentTopic} products! ` + contextualResponse;
+            }
+
+            // Add follow-up suggestions based on topic
+            if (currentTopic === 'fitness') {
+                contextualResponse += "\n\n💪 Would you like to see more outdoor gear or activewear?";
+            } else if (currentTopic === 'jewelry') {
+                contextualResponse += "\n\n💎 Are you looking for something specific like earrings or necklaces?";
+            } else if (currentTopic === 'clothing') {
+                contextualResponse += "\n\n👕 Would you like to see men's or women's clothing specifically?";
+            }
+
+            return contextualResponse;
         } else {
             console.log('❌ Flow bot: No specific products found, showing all products');
         }
@@ -772,7 +897,7 @@ async function handleFlowBot(chatbot, message, sessionId) {
 }
 
 // Handle prompt-based bot interactions
-async function handlePromptBot(chatbot, message) {
+async function handlePromptBot(chatbot, message, context = null) {
     // Check if prompt bot exists in database
     const promptBot = await prisma.promptBot.findFirst({
         where: { chatbotId: chatbot.id }
@@ -781,7 +906,17 @@ async function handlePromptBot(chatbot, message) {
     if (!promptBot) {
         return "I'm a prompt-based bot, but I don't have a prompt configured yet. Please set up my prompt in the bot builder.";
     }
+
     const lowerMessage = message.toLowerCase();
+
+    // Extract context information
+    const contextData = context ? .metadata ? .context || {};
+    const lastTopic = contextData.lastTopic;
+    const conversationFlow = contextData.conversationFlow || [];
+
+    // Detect conversation flow and topic changes
+    const currentTopic = detectTopic(message);
+    const topicChanged = lastTopic && lastTopic !== currentTopic;
 
     // Handle help command
     if (lowerMessage.includes('help')) {
@@ -807,7 +942,26 @@ async function handlePromptBot(chatbot, message) {
         // Try to find specific products first
         const specificProducts = await searchSpecificProducts(message);
         if (specificProducts) {
-            return specificProducts;
+            // Add conversational context and AI-like responses
+            let contextualResponse = specificProducts;
+
+            // Add topic change acknowledgment
+            if (topicChanged) {
+                contextualResponse = `I see you're now interested in ${currentTopic} products! ` + contextualResponse;
+            }
+
+            // Add personalized follow-up suggestions
+            if (currentTopic === 'fitness') {
+                contextualResponse += "\n\n💪 I'd love to help you find the perfect fitness gear! Are you looking for outdoor activities or gym equipment?";
+            } else if (currentTopic === 'jewelry') {
+                contextualResponse += "\n\n💎 Our jewelry collection is quite extensive! Are you shopping for a special occasion or just treating yourself?";
+            } else if (currentTopic === 'clothing') {
+                contextualResponse += "\n\n👕 We have a great selection of clothing! What style are you going for - casual, formal, or something specific?";
+            } else if (currentTopic === 'outdoor') {
+                contextualResponse += "\n\n🏕️ Perfect for outdoor adventures! Are you planning a camping trip or just need some gear for hiking?";
+            }
+
+            return contextualResponse;
         }
 
         // If no specific products found, show all products with AI-like response
@@ -884,6 +1038,16 @@ async function handlePromptBot(chatbot, message) {
     // Handle order command
     if (lowerMessage.includes('order') || lowerMessage.includes('checkout')) {
         return "I'd be happy to help you place an order! First, let's add some products to your cart by searching for them, then we can proceed to checkout.";
+    }
+
+    // Update conversation context before returning
+    if (context) {
+        const updatedContext = {
+            ...contextData,
+            lastTopic: currentTopic,
+            conversationFlow: conversationFlow.slice(-10) // Keep last 10 interactions
+        };
+        await updateConversationContext(sessionId, chatbot.id, updatedContext);
     }
 
     // Default AI-like response
