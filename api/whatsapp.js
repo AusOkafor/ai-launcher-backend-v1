@@ -642,6 +642,96 @@ function detectTopic(message) {
     return 'general';
 }
 
+// Check if query is conversational (needs LLM)
+function isConversationalQuery(message) {
+    const lowerMessage = message.toLowerCase();
+
+    // Conversational patterns that need LLM understanding
+    const conversationalPatterns = [
+        'am just going for',
+        'i am planning',
+        'i am looking for',
+        'i want to',
+        'i need',
+        'can you help me',
+        'what do you think',
+        'what would you recommend',
+        'i am confused',
+        'help me decide',
+        'i am not sure',
+        'what about',
+        'actually',
+        'instead',
+        'i changed my mind',
+        'for my',
+        'for a',
+        'i like',
+        'i prefer',
+        'i am interested in'
+    ];
+
+    return conversationalPatterns.some(pattern => lowerMessage.includes(pattern));
+}
+
+// Get LLM-powered response using existing OpenRouter client
+async function getLLMResponse(chatbot, message, contextData, promptBot) {
+    try {
+        // Import the existing OpenRouter client
+        const { sendPromptToOpenRouter } = await
+        import ('../src/utils/whatsapp/openRouterClient.js');
+
+        // Get available products for context
+        const products = await prisma.product.findMany({
+            take: 20,
+            select: {
+                title: true,
+                price: true,
+                category: true,
+                description: true
+            }
+        });
+
+        // Build conversation context
+        const conversationHistory = contextData.conversationFlow || [];
+        const lastTopic = contextData.lastTopic;
+
+        // Create conversational prompt with product context
+        const prompt = `You are ${chatbot.name}, a helpful AI shopping assistant for an e-commerce store. 
+
+Available products:
+${products.map(p => `- ${p.title} ($${p.price}) - ${p.category}`).join('\n')}
+
+Conversation context:
+- Last topic discussed: ${lastTopic || 'none'}
+- Recent conversation: ${conversationHistory.slice(-3).map(h => h.message).join(', ')}
+
+Instructions:
+- Be conversational and helpful like a real shopping assistant
+- Use the product information to give accurate recommendations
+- Acknowledge context and previous topics when relevant
+- Ask follow-up questions to understand customer needs
+- Keep responses concise but engaging
+- If customer mentions specific activities (like hiking), suggest relevant products
+- If they ask about outdoor gear for hiking, recommend: Camp Stool ($78), Mola Headlamp ($45), Double Wall Mug ($24)
+
+Customer message: "${message}"
+
+Respond naturally and helpfully:`;
+
+        // Use the existing OpenRouter client
+        const llmResponse = await sendPromptToOpenRouter(prompt);
+        
+        if (llmResponse) {
+            console.log('🤖 LLM Response:', llmResponse);
+            return llmResponse;
+        }
+    } catch (error) {
+        console.error('❌ LLM Error:', error);
+    }
+    
+    return null; // Fall back to rule-based logic
+}
+
 // Get or create conversation context for memory
 async function getOrCreateConversationContext(sessionId, botId) {
     try {
@@ -935,17 +1025,25 @@ async function handlePromptBot(chatbot, message, context = null) {
     if (!promptBot) {
         return "I'm a prompt-based bot, but I don't have a prompt configured yet. Please set up my prompt in the bot builder.";
     }
-
+    
     const lowerMessage = message.toLowerCase();
-
+    
     // Extract context information
     const contextData = context && context.metadata && context.metadata.context || {};
     const lastTopic = contextData.lastTopic;
     const conversationFlow = contextData.conversationFlow || [];
-
+    
     // Detect conversation flow and topic changes
     const currentTopic = detectTopic(message);
     const topicChanged = lastTopic && lastTopic !== currentTopic;
+
+    // Try LLM-powered response first for conversational queries
+    if (isConversationalQuery(message)) {
+        const llmResponse = await getLLMResponse(chatbot, message, contextData, promptBot);
+        if (llmResponse) {
+            return llmResponse;
+        }
+    }
 
     // Handle help command
     if (lowerMessage.includes('help')) {
