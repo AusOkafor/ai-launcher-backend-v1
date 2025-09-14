@@ -309,23 +309,22 @@ async function handleChatbots(req, res, pathSegments) {
             }
         }
 
-        // Get real chatbot from database or create default
-        let chatbot = await prisma.chatbot.findFirst({
-            where: {
-                name: {
-                    contains: 'Customer Support'
-                }
+        // Get all chatbots from database
+        const allChatbots = await prisma.chatbot.findMany({
+            orderBy: {
+                createdAt: 'desc'
             }
         });
 
-        // If no chatbot found, create a default one
-        if (!chatbot) {
-            chatbot = {
+        // If no chatbots found, create a default one
+        if (allChatbots.length === 0) {
+            const defaultChatbot = {
                 id: 'whatsapp_simulator_bot',
                 name: 'WhatsApp Marketplace Bot',
                 type: 'FLOW',
                 isActive: true
             };
+            allChatbots.push(defaultChatbot);
         }
 
         const conversations = await prisma.order.count({
@@ -341,15 +340,15 @@ async function handleChatbots(req, res, pathSegments) {
         const accuracyMetrics = await calculateBotAccuracy();
 
         // Return chatbots list in format expected by current frontend
-        const chatbots = [{
+        const chatbots = allChatbots.map(chatbot => ({
             id: chatbot.id,
             name: chatbot.name,
-            type: 'Flow-based',
+            type: chatbot.type === 'FLOW' ? 'Flow-based' : 'Prompt-based',
             status: chatbot.isActive ? 'Active' : 'Paused',
-            conversations: conversations,
-            accuracy: accuracyMetrics.overallAccuracy,
+            conversations: chatbot.totalConversations || conversations,
+            accuracy: chatbot.accuracy ? `${chatbot.accuracy.toFixed(1)}%` : accuracyMetrics.overallAccuracy,
             accuracyBreakdown: accuracyMetrics.breakdown
-        }];
+        }));
 
         return res.status(200).json({
             success: true,
