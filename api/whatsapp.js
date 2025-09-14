@@ -235,6 +235,10 @@ export default async function handler(req, res) {
 
         if (pathSegments[0] === 'fix-prompt-bots') {
             return handleFixPromptBots(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'debug-categories') {
+            return handleDebugCategories(req, res, pathSegments);
         } else if (pathSegments[0] === 'conversations') {
             return handleConversations(req, res, pathSegments);
         } else if (pathSegments[0] === 'orders') {
@@ -930,6 +934,56 @@ async function handleFixPromptBots(req, res, pathSegments) {
                 success: false,
                 error: {
                     message: 'Failed to fix prompt bots',
+                    details: error.message
+                }
+            });
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle debug categories endpoint
+async function handleDebugCategories(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        try {
+            // Get all unique categories from products
+            const categories = await prisma.product.findMany({
+                select: {
+                    category: true
+                },
+                distinct: ['category']
+            });
+
+            // Get sample products from each category
+            const sampleProducts = await prisma.product.findMany({
+                select: {
+                    title: true,
+                    category: true,
+                    price: true
+                },
+                take: 50
+            });
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    uniqueCategories: categories.map(c => c.category),
+                    sampleProducts: sampleProducts,
+                    totalProducts: sampleProducts.length
+                },
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error getting categories:', error);
+            return res.status(500).json({
+                success: false,
+                error: {
+                    message: 'Failed to get categories',
                     details: error.message
                 }
             });
