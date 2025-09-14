@@ -1352,98 +1352,104 @@ async function handleTestLLM(req, res, pathSegments) {
 async function handleConversations(req, res, pathSegments) {
     if (req.method === 'GET') {
         try {
-            // Get conversations from orders and carts to simulate chat sessions
-            const orders = await prisma.order.findMany({
-                where: {
-                    metadata: {
-                        path: ['source'],
-                        equals: 'whatsapp_simulator'
+            // Get query parameters for filtering and pagination
+            const { status, search, limit = 20, offset = 0 } = req.query;
+            
+            console.log('🔍 Fetching conversations with params:', { status, search, limit, offset });
+
+            // Build where clause for filtering
+            const where = {};
+            
+            // Filter by status if provided
+            if (status && status !== 'all') {
+                where.status = status.toUpperCase();
+            }
+            
+            // Search functionality
+            if (search) {
+                where.OR = [
+                    { sessionId: { contains: search, mode: 'insensitive' } },
+                    { 
+                        messages: { 
+                            some: { 
+                                content: { contains: search, mode: 'insensitive' } 
+                            } 
+                        } 
                     }
-                },
+                ];
+            }
+
+            // Fetch real conversations from the database
+            const conversations = await prisma.conversation.findMany({
+                where,
                 include: {
-                    store: true,
-                    customer: true
-                },
-                orderBy: {
-                    createdAt: 'desc'
-                },
-                take: 20
-            });
-
-            const carts = await prisma.cart.findMany({
-                where: {
-                    status: { in: ['ACTIVE', 'CHECKOUT_STARTED'] }
-                },
-                include: {
-                    store: true,
-                    customer: true
-                },
-                orderBy: {
-                    createdAt: 'desc'
-                },
-                take: 10
-            });
-
-            // Convert orders to conversations
-            const orderConversations = orders.map((order, index) => ({
-                id: `order_${order.id}`,
-                sessionId: order.externalId || `session_${order.id}`,
-                customerName: order.customer && order.customer.name || `Customer ${order.externalId && order.externalId.slice(-4) || order.id.slice(-4)}`,
-                status: order.status === 'CONFIRMED' ? 'resolved' : 'active',
-                lastMessage: order.status === 'CONFIRMED' ?
-                    `Order ${order.orderNumber} confirmed - $${order.total}` : `Order ${order.orderNumber} pending - $${order.total}`,
-                timestamp: order.createdAt,
-                createdAt: order.createdAt,
-                messages: [{
-                    content: order.status === 'CONFIRMED' ?
-                        `Order ${order.orderNumber} confirmed - $${order.total}` : `Order ${order.orderNumber} pending - $${order.total}`,
-                    timestamp: order.createdAt
-                }],
-                _count: {
-                    messages: 1
-                },
-                chatbot: {
-                    name: 'WhatsApp Simulator Bot'
-                }
-            }));
-
-            // Convert active carts to conversations
-            const cartConversations = carts.map((cart, index) => {
-                const items = Array.isArray(cart.items) ? cart.items : [];
-                return {
-                    id: `cart_${cart.id}`,
-                    sessionId: `cart_session_${cart.id}`,
-                    customerName: cart.customer && cart.customer.name || `Customer ${cart.id.slice(-4)}`,
-                    status: 'active',
-                    lastMessage: items.length > 0 ?
-                        `Cart with ${items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
-                    timestamp: cart.createdAt,
-                    createdAt: cart.createdAt,
-                    messages: [{
-                        content: items.length > 0 ?
-                            `Cart with ${items.length} item(s) - $${cart.subtotal}` : 'Empty cart',
-                        timestamp: cart.createdAt
-                    }],
-                    _count: {
-                        messages: 1
-                    },
                     chatbot: {
-                        name: 'WhatsApp Simulator Bot'
+                        select: {
+                            id: true,
+                            name: true
+                        }
+                    },
+                    messages: {
+                        orderBy: { timestamp: 'desc' },
+                        take: 1,
+                        select: {
+                            id: true,
+                            content: true,
+                            fromBot: true,
+                            timestamp: true
+                        }
+                    },
+                    _count: {
+                        select: {
+                            messages: true
+                        }
                     }
-                };
+                },
+                orderBy: { 
+                    lastActiveAt: 'desc' 
+                },
+                skip: parseInt(offset),
+                take: parseInt(limit)
             });
 
-            // Combine and sort conversations
-            const allConversations = [...orderConversations, ...cartConversations]
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            // Get total count for pagination
+            const totalCount = await prisma.conversation.count({ where });
+
+            console.log(`✅ Found ${conversations.length} conversations (total: ${totalCount})`);
+
+            // Transform conversations to match frontend expectations
+            const transformedConversations = conversations.map(conv => ({
+                id: conv.id,
+                sessionId: conv.sessionId,
+                customerName: `Customer ${conv.sessionId.slice(-4)}`,
+                status: conv.status.toLowerCase(),
+                lastMessage: conv.messages && conv.messages[0] 
+                    ? conv.messages[0].content 
+                    : 'No messages yet',
+                timestamp: conv.messages && conv.messages[0] 
+                    ? conv.messages[0].timestamp 
+                    : conv.createdAt,
+                createdAt: conv.createdAt,
+                lastActiveAt: conv.lastActiveAt,
+                accuracy: conv.accuracy,
+                messages: conv.messages || [],
+                _count: conv._count,
+                chatbot: conv.chatbot || { name: 'Unknown Bot' }
+            }));
 
             return res.status(200).json({
                 success: true,
-                data: allConversations,
+                data: transformedConversations,
+                pagination: {
+                    total: totalCount,
+                    limit: parseInt(limit),
+                    offset: parseInt(offset),
+                    hasMore: (parseInt(offset) + parseInt(limit)) < totalCount
+                },
                 timestamp: new Date().toISOString()
             });
         } catch (error) {
-            console.error('Error fetching conversations:', error);
+            console.error('❌ Error fetching conversations:', error);
             return res.status(500).json({
                 success: false,
                 error: { message: 'Failed to fetch conversations' }
