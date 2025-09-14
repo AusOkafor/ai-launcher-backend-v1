@@ -82,7 +82,7 @@ async function handleChatbots(req, res, pathSegments) {
         if (stats === 'true') {
             try {
                 // Get real stats from database
-                const [orders, products, conversations] = await Promise.all([
+                const [orders, products, orderCount, cartCount] = await Promise.all([
                     prisma.order.count({
                         where: {
                             metadata: {
@@ -99,10 +99,13 @@ async function handleChatbots(req, res, pathSegments) {
                                 equals: 'whatsapp_simulator'
                             }
                         }
-                    }) + prisma.cart.count({
+                    }),
+                    prisma.cart.count({
                         where: { status: { in: ['ACTIVE', 'CHECKOUT_STARTED'] } }
                     })
                 ]);
+
+                const conversations = orderCount + cartCount;
 
                 const totalRevenue = await prisma.order.aggregate({
                     where: {
@@ -168,7 +171,7 @@ async function handleChatbots(req, res, pathSegments) {
 
         return res.status(200).json({
             success: true,
-            data: chatbots,
+            data: { chatbots },
             timestamp: new Date().toISOString()
         });
     }
