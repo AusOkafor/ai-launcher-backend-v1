@@ -1312,7 +1312,7 @@ async function handleTestLLM(req, res, pathSegments) {
 
             console.log('🧪 Testing LLM with message:', message);
 
-            // Test the LLM directly
+            // Test the LLM directly using the OpenRouter client
             const { sendPromptToOpenRouter } = await import('../src/utils/whatsapp/openRouterClient.js');
             
             const prompt = `You are a helpful AI shopping assistant. Respond naturally and helpfully to this message: "${message}"`;
