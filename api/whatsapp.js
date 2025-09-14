@@ -51,27 +51,27 @@ async function calculateBotAccuracy() {
         const metrics = {
             // 1. Order Completion Rate
             orderCompletion: calculateOrderCompletionRate(whatsappOrders, whatsappCarts),
-            
+
             // 2. Intent Recognition Accuracy
             intentRecognition: calculateIntentRecognition(whatsappOrders, whatsappCarts),
-            
+
             // 3. Response Relevance (based on successful product searches)
             responseRelevance: calculateResponseRelevance(whatsappOrders, whatsappCarts),
-            
+
             // 4. User Engagement (carts that led to orders)
             userEngagement: calculateUserEngagement(whatsappOrders, whatsappCarts),
-            
+
             // 5. Revenue Conversion
             revenueConversion: calculateRevenueConversion(whatsappOrders, whatsappCarts)
         };
 
         // Calculate weighted overall accuracy
         const weights = {
-            orderCompletion: 0.3,    // 30% - Most important for e-commerce
-            intentRecognition: 0.25,  // 25% - Core bot functionality
-            responseRelevance: 0.2,   // 20% - User satisfaction
-            userEngagement: 0.15,     // 15% - Engagement quality
-            revenueConversion: 0.1    // 10% - Business impact
+            orderCompletion: 0.3, // 30% - Most important for e-commerce
+            intentRecognition: 0.25, // 25% - Core bot functionality
+            responseRelevance: 0.2, // 20% - User satisfaction
+            userEngagement: 0.15, // 15% - Engagement quality
+            revenueConversion: 0.1 // 10% - Business impact
         };
 
         const overallAccuracy = Object.keys(metrics).reduce((total, key) => {
@@ -115,7 +115,7 @@ async function calculateBotAccuracy() {
 function calculateOrderCompletionRate(orders, carts) {
     const totalAttempts = orders.length + carts.length;
     if (totalAttempts === 0) return 85.0; // Default for new bots
-    
+
     const completedOrders = orders.length;
     return (completedOrders / totalAttempts) * 100;
 }
@@ -123,48 +123,48 @@ function calculateOrderCompletionRate(orders, carts) {
 function calculateIntentRecognition(orders, carts) {
     const totalInteractions = orders.length + carts.length;
     if (totalInteractions === 0) return 85.0;
-    
+
     // Count interactions that led to meaningful actions (orders or active carts)
-    const meaningfulInteractions = orders.length + carts.filter(cart => 
+    const meaningfulInteractions = orders.length + carts.filter(cart =>
         cart.status === 'ACTIVE' || cart.status === 'CHECKOUT_STARTED'
     ).length;
-    
+
     return (meaningfulInteractions / totalInteractions) * 100;
 }
 
 function calculateResponseRelevance(orders, carts) {
     const totalInteractions = orders.length + carts.length;
     if (totalInteractions === 0) return 85.0;
-    
+
     // Count interactions where users found relevant products (orders or carts with items)
-    const relevantInteractions = orders.length + carts.filter(cart => 
+    const relevantInteractions = orders.length + carts.filter(cart =>
         cart.items && Array.isArray(cart.items) && cart.items.length > 0
     ).length;
-    
+
     return (relevantInteractions / totalInteractions) * 100;
 }
 
 function calculateUserEngagement(orders, carts) {
     const totalCarts = carts.length;
     if (totalCarts === 0) return 85.0;
-    
+
     // Count carts that led to orders (high engagement)
-    const engagedCarts = carts.filter(cart => 
+    const engagedCarts = carts.filter(cart =>
         cart.status === 'CONVERTED' || cart.status === 'CHECKOUT_STARTED'
     ).length;
-    
+
     return (engagedCarts / totalCarts) * 100;
 }
 
 function calculateRevenueConversion(orders, carts) {
     const totalInteractions = orders.length + carts.length;
     if (totalInteractions === 0) return 85.0;
-    
+
     // Count interactions that generated revenue
-    const revenueGeneratingInteractions = orders.filter(order => 
+    const revenueGeneratingInteractions = orders.filter(order =>
         order.total && parseFloat(order.total) > 0
     ).length;
-    
+
     return (revenueGeneratingInteractions / totalInteractions) * 100;
 }
 
@@ -356,6 +356,66 @@ async function handleChatbots(req, res, pathSegments) {
             data: { chatbots },
             timestamp: new Date().toISOString()
         });
+    }
+
+    if (req.method === 'POST') {
+        try {
+            const { name, type, description, prompt, temperature, maxTokens } = req.body;
+
+            // Validate required fields
+            if (!name || !type) {
+                return res.status(400).json({
+                    success: false,
+                    error: { message: 'Name and type are required' }
+                });
+            }
+
+            // Create new chatbot
+            const newChatbot = await prisma.chatbot.create({
+                data: {
+                    name: name.trim(),
+                    type: type.toUpperCase(), // FLOW or PROMPT
+                    description: description || '',
+                    prompt: prompt || '',
+                    isActive: true,
+                    workspaceId: 'test-workspace-id',
+                    settings: {
+                        temperature: temperature || 0.7,
+                        maxTokens: maxTokens || 150,
+                        model: 'gpt-3.5-turbo'
+                    },
+                    metadata: {
+                        source: 'whatsapp_marketplace',
+                        createdVia: 'chatbot_builder',
+                        version: '1.0'
+                    }
+                }
+            });
+
+            return res.status(201).json({
+                success: true,
+                data: {
+                    id: newChatbot.id,
+                    name: newChatbot.name,
+                    type: newChatbot.type,
+                    status: newChatbot.isActive ? 'Active' : 'Paused',
+                    conversations: 0,
+                    accuracy: '0%',
+                    createdAt: newChatbot.createdAt
+                },
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error creating chatbot:', error);
+            return res.status(500).json({
+                success: false,
+                error: {
+                    message: 'Failed to create chatbot',
+                    details: error.message
+                }
+            });
+        }
     }
 
     return res.status(405).json({
