@@ -489,6 +489,103 @@ async function handleChatbots(req, res, pathSegments) {
     });
 }
 
+// Helper function to search for specific products based on user query
+async function searchSpecificProducts(message) {
+    const lowerMessage = message.toLowerCase();
+
+    // Define category mappings
+    const categoryMappings = {
+        'fitness': ['outdoor', 'mens', 'womens', 'accessories'],
+        'equipment': ['outdoor', 'mens', 'womens', 'accessories'],
+        'jewelry': ['earrings', 'necklace', 'rings'],
+        'earrings': ['earrings'],
+        'necklace': ['necklace'],
+        'rings': ['rings'],
+        'outdoor': ['outdoor'],
+        'camping': ['outdoor'],
+        'clothing': ['mens', 'womens'],
+        'mens': ['mens'],
+        'womens': ['womens'],
+        'accessories': ['accessories'],
+        'bags': ['bags'],
+        'home': ['home']
+    };
+
+    // Find matching categories
+    let matchingCategories = [];
+    for (const [keyword, categories] of Object.entries(categoryMappings)) {
+        if (lowerMessage.includes(keyword)) {
+            matchingCategories = [...matchingCategories, ...categories];
+        }
+    }
+
+    // Remove duplicates
+    matchingCategories = [...new Set(matchingCategories)];
+
+    if (matchingCategories.length > 0) {
+        // Search for products in matching categories
+        const products = await prisma.product.findMany({
+            where: {
+                category: { in: matchingCategories
+                }
+            },
+            take: 10,
+            select: {
+                id: true,
+                title: true,
+                price: true,
+                category: true
+            }
+        });
+
+        if (products.length > 0) {
+            let response = `Great! I found some products that match your search for "${message}":\n\n`;
+            products.forEach((product, index) => {
+                response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
+            });
+            response += "Type the product name or number to view details!";
+            return response;
+        }
+    }
+
+    // If no category match, try searching by product title or description
+    const products = await prisma.product.findMany({
+        where: {
+            OR: [{
+                    title: {
+                        contains: message,
+                        mode: 'insensitive'
+                    }
+                },
+                {
+                    description: {
+                        contains: message,
+                        mode: 'insensitive'
+                    }
+                }
+            ]
+        },
+        take: 5,
+        select: {
+            id: true,
+            title: true,
+            price: true,
+            category: true
+        }
+    });
+
+    if (products.length > 0) {
+        let response = `I found these products matching "${message}":\n\n`;
+        products.forEach((product, index) => {
+            response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
+        });
+        response += "Type the product name or number to view details!";
+        return response;
+    }
+
+    return null; // No specific products found
+}
+
 // Handle bot interaction endpoints
 async function handleBotInteraction(req, res, pathSegments) {
     if (req.method === 'POST') {
@@ -586,7 +683,13 @@ async function handleFlowBot(chatbot, message, sessionId) {
         lowerMessage.includes('price') || lowerMessage.includes('cost') ||
         lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do')) {
 
-        // Get products from database
+        // Try to find specific products first
+        const specificProducts = await searchSpecificProducts(message);
+        if (specificProducts) {
+            return specificProducts;
+        }
+
+        // If no specific products found, show all products
         const products = await prisma.product.findMany({
             take: 20,
             select: {
@@ -687,7 +790,13 @@ async function handlePromptBot(chatbot, message) {
         lowerMessage.includes('price') || lowerMessage.includes('cost') ||
         lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do')) {
 
-        // Get products from database
+        // Try to find specific products first
+        const specificProducts = await searchSpecificProducts(message);
+        if (specificProducts) {
+            return specificProducts;
+        }
+
+        // If no specific products found, show all products with AI-like response
         const products = await prisma.product.findMany({
             take: 20,
             select: {
