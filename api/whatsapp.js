@@ -498,22 +498,22 @@ async function searchSpecificProducts(message) {
     const lowerMessage = message.toLowerCase();
     console.log('🔍 Searching for products with message:', message);
 
-    // Define category mappings
+    // Define category mappings (using exact case from database)
     const categoryMappings = {
-        'fitness': ['outdoor', 'mens', 'womens', 'accessories'],
-        'equipment': ['outdoor', 'mens', 'womens', 'accessories'],
-        'jewelry': ['earrings', 'necklace', 'rings'],
-        'earrings': ['earrings'],
-        'necklace': ['necklace'],
-        'rings': ['rings'],
-        'outdoor': ['outdoor'],
-        'camping': ['outdoor'],
-        'clothing': ['mens', 'womens'],
-        'mens': ['mens'],
-        'womens': ['womens'],
-        'accessories': ['accessories'],
-        'bags': ['bags'],
-        'home': ['home']
+        'fitness': ['Outdoor', 'Mens', 'Womens', 'Accessories'],
+        'equipment': ['Outdoor', 'Mens', 'Womens', 'Accessories'],
+        'jewelry': ['Earrings', 'Necklace', 'Rings'],
+        'earrings': ['Earrings'],
+        'necklace': ['Necklace'],
+        'rings': ['Rings'],
+        'outdoor': ['Outdoor'],
+        'camping': ['Outdoor'],
+        'clothing': ['Mens', 'Womens'],
+        'mens': ['Mens'],
+        'womens': ['Womens'],
+        'accessories': ['Accessories'],
+        'bags': ['Bags'],
+        'home': ['Home']
     };
 
     // Find matching categories
