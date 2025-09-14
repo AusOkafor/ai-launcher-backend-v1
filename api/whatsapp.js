@@ -678,7 +678,7 @@ async function getLLMResponse(chatbot, message, contextData, promptBot) {
     try {
         // Import the existing OpenRouter client
         const { sendPromptToOpenRouter } = await
-        import ('../src/utils/whatsapp/openRouterClient.js');
+        import ('./src/utils/whatsapp/openRouterClient.js');
 
         // Get available products for context
         const products = await prisma.product.findMany({
