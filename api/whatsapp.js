@@ -577,11 +577,16 @@ async function handleFlowBot(chatbot, message, sessionId) {
         return "Your cart is empty! Search for products or type 'products' to see what we have available.";
     }
 
-    // Handle product search
-    if (lowerMessage.includes('product') || lowerMessage.includes('browse') ||
+    // Handle product search - expanded keywords
+    if (lowerMessage.includes('product') || lowerMessage.includes('browse') || 
         lowerMessage.includes('what do you have') || lowerMessage.includes('in stock') ||
         lowerMessage.includes('fitness') || lowerMessage.includes('buy') ||
-        lowerMessage.includes('looking for') || lowerMessage.includes('want')) {
+        lowerMessage.includes('looking for') || lowerMessage.includes('want') ||
+        lowerMessage.includes('show me') || lowerMessage.includes('jewelry') ||
+        lowerMessage.includes('smartphone') || lowerMessage.includes('phone') ||
+        lowerMessage.includes('collection') || lowerMessage.includes('equipment') ||
+        lowerMessage.includes('price') || lowerMessage.includes('cost') ||
+        lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do')) {
 
         // Get products from database
         const products = await prisma.product.findMany({
@@ -611,23 +616,56 @@ async function handleFlowBot(chatbot, message, sessionId) {
 
         return productList;
     }
-
+    
+    // Handle specific product queries (like "Whitney Pullover", "14k earrings", etc.)
+    if (message.length > 3 && !lowerMessage.includes('help') && !lowerMessage.includes('cart') && !lowerMessage.includes('order')) {
+        // Search for specific products
+        const products = await prisma.product.findMany({
+            where: {
+                OR: [
+                    { title: { contains: message, mode: 'insensitive' } },
+                    { category: { contains: message, mode: 'insensitive' } },
+                    { description: { contains: message, mode: 'insensitive' } }
+                ]
+            },
+            take: 5,
+            select: {
+                id: true,
+                title: true,
+                price: true,
+                category: true
+            }
+        });
+        
+        if (products.length > 0) {
+            let response = `I found ${products.length} product(s) matching "${message}":\n\n`;
+            products.forEach((product, index) => {
+                response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
+            });
+            response += "Type the product name or number to view details!";
+            return response;
+        }
+    }
+    
     // Handle order command
     if (lowerMessage.includes('order') || lowerMessage.includes('checkout')) {
         return "To place an order, first add some products to your cart by searching for them, then type 'order' to checkout!";
     }
-
+    
     // Default response
     return `Hello! I'm ${chatbot.name}. How can I help you today?\n\nYou can:\n• Search for products\n• Ask about our inventory\n• Get help with orders\n\nJust let me know what you need!`;
 }
 
 // Handle prompt-based bot interactions
 async function handlePromptBot(chatbot, message) {
-    if (!chatbot.prompts || chatbot.prompts.length === 0) {
+    // Check if prompt bot exists in database
+    const promptBot = await prisma.promptBot.findFirst({
+        where: { chatbotId: chatbot.id }
+    });
+
+    if (!promptBot) {
         return "I'm a prompt-based bot, but I don't have a prompt configured yet. Please set up my prompt in the bot builder.";
     }
-
-    const promptBot = chatbot.prompts[0];
     const lowerMessage = message.toLowerCase();
 
     // Handle help command
@@ -640,11 +678,16 @@ async function handlePromptBot(chatbot, message) {
         return "Your cart is empty! Search for products or type 'products' to see what we have available.";
     }
 
-    // Handle product search with AI-like responses
-    if (lowerMessage.includes('product') || lowerMessage.includes('buy') ||
+    // Handle product search with AI-like responses - expanded keywords
+    if (lowerMessage.includes('product') || lowerMessage.includes('buy') || 
         lowerMessage.includes('what do you have') || lowerMessage.includes('in stock') ||
-        lowerMessage.includes('fitness') || lowerMessage.includes('looking for') ||
-        lowerMessage.includes('want') || lowerMessage.includes('anything for')) {
+        lowerMessage.includes('fitness') || lowerMessage.includes('looking for') || 
+        lowerMessage.includes('want') || lowerMessage.includes('anything for') ||
+        lowerMessage.includes('show me') || lowerMessage.includes('jewelry') ||
+        lowerMessage.includes('smartphone') || lowerMessage.includes('phone') ||
+        lowerMessage.includes('collection') || lowerMessage.includes('equipment') ||
+        lowerMessage.includes('price') || lowerMessage.includes('cost') ||
+        lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do')) {
 
         // Get products from database
         const products = await prisma.product.findMany({
@@ -686,12 +729,42 @@ async function handlePromptBot(chatbot, message) {
 
         return response;
     }
-
+    
+    // Handle specific product queries (like "Whitney Pullover", "14k earrings", etc.)
+    if (message.length > 3 && !lowerMessage.includes('help') && !lowerMessage.includes('cart') && !lowerMessage.includes('order')) {
+        // Search for specific products
+        const products = await prisma.product.findMany({
+            where: {
+                OR: [
+                    { title: { contains: message, mode: 'insensitive' } },
+                    { category: { contains: message, mode: 'insensitive' } },
+                    { description: { contains: message, mode: 'insensitive' } }
+                ]
+            },
+            take: 5,
+            select: {
+                id: true,
+                title: true,
+                price: true,
+                category: true
+            }
+        });
+        
+        if (products.length > 0) {
+            let response = `Great! I found ${products.length} product(s) matching "${message}":\n\n`;
+            products.forEach((product, index) => {
+                response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
+            });
+            response += "Type the product name or number to view details!";
+            return response;
+        }
+    }
+    
     // Handle order command
     if (lowerMessage.includes('order') || lowerMessage.includes('checkout')) {
         return "I'd be happy to help you place an order! First, let's add some products to your cart by searching for them, then we can proceed to checkout.";
     }
-
+    
     // Default AI-like response
     return `Hello! I'm ${chatbot.name}, your AI shopping assistant. I'm here to help you find products, answer questions, and make your shopping experience great! What can I help you with today?`;
 }
