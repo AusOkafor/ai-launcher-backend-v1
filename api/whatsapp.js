@@ -159,12 +159,12 @@ function calculateUserEngagement(orders, carts) {
 function calculateRevenueConversion(orders, carts) {
     const totalInteractions = orders.length + carts.length;
     if (totalInteractions === 0) return 85.0;
-    
+
     // Count interactions that generated revenue
-    const revenueGeneratingInteractions = orders.filter(order => 
+    const revenueGeneratingInteractions = orders.filter(order =>
         order.total && parseFloat(order.total) > 0
     ).length;
-    
+
     return (revenueGeneratingInteractions / totalInteractions) * 100;
 }
 
@@ -227,6 +227,10 @@ export default async function handler(req, res) {
         // Route based on path segments
         if (pathSegments[0] === 'chatbots') {
             return handleChatbots(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'bot-interact') {
+            return handleBotInteraction(req, res, pathSegments);
         } else if (pathSegments[0] === 'conversations') {
             return handleConversations(req, res, pathSegments);
         } else if (pathSegments[0] === 'orders') {
@@ -418,6 +422,43 @@ async function handleChatbots(req, res, pathSegments) {
                 }
             });
 
+            // If it's a PROMPT bot, create the prompt configuration
+            if (type.toUpperCase() === 'PROMPT' && prompt) {
+                await prisma.promptBot.create({
+                    data: {
+                        chatbotId: newChatbot.id,
+                        prompt: prompt,
+                        temperature: temperature || 0.7,
+                        maxTokens: maxTokens || 150,
+                        model: 'gpt-3.5-turbo',
+                        settings: {
+                            temperature: temperature || 0.7,
+                            maxTokens: maxTokens || 150,
+                            model: 'gpt-3.5-turbo'
+                        }
+                    }
+                });
+            }
+
+            // If it's a FLOW bot, create a default starting flow
+            if (type.toUpperCase() === 'FLOW') {
+                await prisma.flowNode.create({
+                    data: {
+                        chatbotId: newChatbot.id,
+                        title: 'Welcome',
+                        message: `Hello! I'm ${name}. How can I help you today?`,
+                        options: JSON.stringify([
+                            { label: 'Browse Products', nextNodeId: 'browse_products' },
+                            { label: 'Track Order', nextNodeId: 'track_order' },
+                            { label: 'Get Support', nextNodeId: 'support' }
+                        ]),
+                        order: 1,
+                        xPos: 0,
+                        yPos: 0
+                    }
+                });
+            }
+
             return res.status(201).json({
                 success: true,
                 data: {
@@ -448,6 +489,115 @@ async function handleChatbots(req, res, pathSegments) {
         success: false,
         error: { message: 'Method not allowed' }
     });
+}
+
+// Handle bot interaction endpoints
+async function handleBotInteraction(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        try {
+            const { botId, message, userId, sessionId } = req.body;
+
+            if (!botId || !message) {
+                return res.status(400).json({
+                    success: false,
+                    error: { message: 'Bot ID and message are required' }
+                });
+            }
+
+            // Get the chatbot
+            const chatbot = await prisma.chatbot.findUnique({
+                where: { id: botId },
+                include: {
+                    flows: true,
+                    prompts: true
+                }
+            });
+
+            if (!chatbot) {
+                return res.status(404).json({
+                    success: false,
+                    error: { message: 'Chatbot not found' }
+                });
+            }
+
+            let response = '';
+            let nextNodeId = null;
+
+            if (chatbot.type === 'FLOW') {
+                // Handle flow-based bot
+                response = await handleFlowBot(chatbot, message, sessionId);
+            } else if (chatbot.type === 'PROMPT') {
+                // Handle prompt-based bot
+                response = await handlePromptBot(chatbot, message);
+            }
+
+            // Update chatbot metrics
+            await updateChatbotMetrics(botId, 'conversation');
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    response: response,
+                    botId: botId,
+                    botName: chatbot.name,
+                    nextNodeId: nextNodeId
+                },
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error handling bot interaction:', error);
+            return res.status(500).json({
+                success: false,
+                error: {
+                    message: 'Failed to process bot interaction',
+                    details: error.message
+                }
+            });
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle flow-based bot interactions
+async function handleFlowBot(chatbot, message, sessionId) {
+    // For now, return a simple response based on the message
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('product') || lowerMessage.includes('browse')) {
+        return "Great! I can help you browse our products. What category are you interested in?\n\n1. Electronics\n2. Clothing\n3. Books\n4. Home & Garden";
+    } else if (lowerMessage.includes('order') || lowerMessage.includes('track')) {
+        return "I can help you track your order. Please provide your order number or email address.";
+    } else if (lowerMessage.includes('support') || lowerMessage.includes('help')) {
+        return "I'm here to help! What can I assist you with today?\n\n• Product questions\n• Order support\n• Returns & exchanges\n• General inquiries";
+    } else {
+        return `Hello! I'm ${chatbot.name}. How can I help you today?\n\nYou can:\n• Browse products\n• Track your order\n• Get support\n\nJust let me know what you need!`;
+    }
+}
+
+// Handle prompt-based bot interactions
+async function handlePromptBot(chatbot, message) {
+    if (!chatbot.prompts || chatbot.prompts.length === 0) {
+        return "I'm a prompt-based bot, but I don't have a prompt configured yet. Please set up my prompt in the bot builder.";
+    }
+
+    const promptBot = chatbot.prompts[0];
+    
+    // For now, return a simple AI-like response
+    // In a real implementation, you'd call your AI service here
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('product') || lowerMessage.includes('buy')) {
+        return "I'd be happy to help you find the perfect product! Based on your message, it sounds like you're looking to make a purchase. Let me search our catalog for you. What specific type of product are you interested in?";
+    } else if (lowerMessage.includes('price') || lowerMessage.includes('cost')) {
+        return "I can help you with pricing information! Our products range from budget-friendly options to premium items. Could you tell me which product you're interested in so I can give you the exact price?";
+    } else {
+        return `Hello! I'm ${chatbot.name}, your AI shopping assistant. I'm here to help you find products, answer questions, and make your shopping experience great! What can I help you with today?`;
+    }
 }
 
 // Handle conversations endpoints
