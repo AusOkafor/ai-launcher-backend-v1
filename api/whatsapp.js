@@ -530,6 +530,14 @@ async function searchSpecificProducts(message) {
     console.log('📋 Final matching categories:', matchingCategories);
 
     if (matchingCategories.length > 0) {
+        // Determine sorting based on query
+        let orderBy = { createdAt: 'desc' }; // Default sorting
+        if (lowerMessage.includes('cheapest') || lowerMessage.includes('lowest price') || lowerMessage.includes('affordable')) {
+            orderBy = { price: 'asc' }; // Sort by price ascending
+        } else if (lowerMessage.includes('most expensive') || lowerMessage.includes('highest price') || lowerMessage.includes('premium')) {
+            orderBy = { price: 'desc' }; // Sort by price descending
+        }
+
         // Search for products in matching categories
         const products = await prisma.product.findMany({
             where: {
@@ -537,6 +545,7 @@ async function searchSpecificProducts(message) {
                 }
             },
             take: 10,
+            orderBy: orderBy,
             select: {
                 id: true,
                 title: true,
@@ -548,6 +557,14 @@ async function searchSpecificProducts(message) {
         if (products.length > 0) {
             console.log('✅ Found', products.length, 'products in categories:', matchingCategories);
             let response = `Great! I found some products that match your search for "${message}":\n\n`;
+
+            // Add price sorting context
+            if (lowerMessage.includes('cheapest') || lowerMessage.includes('lowest price')) {
+                response = `Here are the most affordable options I found for "${message}":\n\n`;
+            } else if (lowerMessage.includes('most expensive') || lowerMessage.includes('highest price')) {
+                response = `Here are the premium options I found for "${message}":\n\n`;
+            }
+
             products.forEach((product, index) => {
                 response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
             });
