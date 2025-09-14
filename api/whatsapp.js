@@ -239,6 +239,10 @@ export default async function handler(req, res) {
 
         if (pathSegments[0] === 'debug-categories') {
             return handleDebugCategories(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'test-llm') {
+            return handleTestLLM(req, res, pathSegments);
         } else if (pathSegments[0] === 'conversations') {
             return handleConversations(req, res, pathSegments);
         } else if (pathSegments[0] === 'orders') {
@@ -1281,6 +1285,57 @@ async function handleDebugCategories(req, res, pathSegments) {
                 success: false,
                 error: {
                     message: 'Failed to get categories',
+                    details: error.message
+                }
+            });
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle test LLM endpoint
+async function handleTestLLM(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        try {
+            const { message } = req.body;
+            
+            if (!message) {
+                return res.status(400).json({
+                    success: false,
+                    error: { message: 'Message is required' }
+                });
+            }
+
+            console.log('🧪 Testing LLM with message:', message);
+
+            // Test the LLM directly
+            const { sendPromptToOpenRouter } = await import('./src/utils/whatsapp/openRouterClient.js');
+            
+            const prompt = `You are a helpful AI shopping assistant. Respond naturally and helpfully to this message: "${message}"`;
+            
+            const llmResponse = await sendPromptToOpenRouter(prompt);
+            
+            console.log('✅ LLM Response:', llmResponse);
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    message: message,
+                    llmResponse: llmResponse,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        } catch (error) {
+            console.error('❌ LLM Test Error:', error);
+            return res.status(500).json({
+                success: false,
+                error: {
+                    message: 'LLM test failed',
                     details: error.message
                 }
             });
