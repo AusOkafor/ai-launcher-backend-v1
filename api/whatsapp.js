@@ -762,7 +762,7 @@ async function handleFlowBot(chatbot, message, sessionId, context = null) {
     const lowerMessage = message.toLowerCase();
 
     // Extract context information
-    const contextData = context ? .metadata ? .context || {};
+    const contextData = context && context.metadata && context.metadata.context || {};
     const lastTopic = contextData.lastTopic;
     const mentionedProducts = contextData.mentionedProducts || [];
     const conversationFlow = contextData.conversationFlow || [];
@@ -910,7 +910,7 @@ async function handlePromptBot(chatbot, message, context = null) {
     const lowerMessage = message.toLowerCase();
 
     // Extract context information
-    const contextData = context ? .metadata ? .context || {};
+    const contextData = context && context.metadata && context.metadata.context || {};
     const lastTopic = contextData.lastTopic;
     const conversationFlow = contextData.conversationFlow || [];
 
