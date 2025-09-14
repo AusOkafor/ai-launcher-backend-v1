@@ -628,6 +628,8 @@ function detectTopic(message) {
 // Get or create conversation context for memory
 async function getOrCreateConversationContext(sessionId, botId) {
     try {
+        console.log('🔍 Getting conversation context for session:', sessionId, 'bot:', botId);
+
         // Try to get existing conversation
         let conversation = await prisma.conversation.findFirst({
             where: {
@@ -638,6 +640,7 @@ async function getOrCreateConversationContext(sessionId, botId) {
         });
 
         if (!conversation) {
+            console.log('📝 Creating new conversation context');
             // Create new conversation
             conversation = await prisma.conversation.create({
                 data: {
@@ -654,11 +657,13 @@ async function getOrCreateConversationContext(sessionId, botId) {
                     }
                 }
             });
+        } else {
+            console.log('✅ Found existing conversation context:', conversation.metadata);
         }
 
         return conversation;
     } catch (error) {
-        console.error('Error getting conversation context:', error);
+        console.error('❌ Error getting conversation context:', error);
         return null;
     }
 }
@@ -666,7 +671,8 @@ async function getOrCreateConversationContext(sessionId, botId) {
 // Update conversation context
 async function updateConversationContext(sessionId, botId, newContext) {
     try {
-        await prisma.conversation.updateMany({
+        console.log('🔄 Updating conversation context for session:', sessionId, 'bot:', botId);
+        const result = await prisma.conversation.updateMany({
             where: {
                 sessionId: sessionId,
                 chatbotId: botId,
@@ -677,8 +683,9 @@ async function updateConversationContext(sessionId, botId, newContext) {
                 lastActiveAt: new Date()
             }
         });
+        console.log('✅ Context updated, affected rows:', result.count);
     } catch (error) {
-        console.error('Error updating conversation context:', error);
+        console.error('❌ Error updating conversation context:', error);
     }
 }
 
