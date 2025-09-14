@@ -805,7 +805,12 @@ async function handleFlowBot(chatbot, message, sessionId, context = null) {
         lowerMessage.includes('smartphone') || lowerMessage.includes('phone') ||
         lowerMessage.includes('collection') || lowerMessage.includes('equipment') ||
         lowerMessage.includes('price') || lowerMessage.includes('cost') ||
-        lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do')) {
+        lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do') ||
+        lowerMessage.includes('what about') || lowerMessage.includes('outdoor') ||
+        lowerMessage.includes('gear') || lowerMessage.includes('clothing') ||
+        lowerMessage.includes('earrings') || lowerMessage.includes('necklace') ||
+        lowerMessage.includes('ring') || lowerMessage.includes('bag') ||
+        lowerMessage.includes('home') || lowerMessage.includes('accessories')) {
 
         // Try to find specific products first
         console.log('🤖 Flow bot: Attempting specific product search for:', message);
@@ -944,7 +949,12 @@ async function handlePromptBot(chatbot, message, context = null) {
         lowerMessage.includes('smartphone') || lowerMessage.includes('phone') ||
         lowerMessage.includes('collection') || lowerMessage.includes('equipment') ||
         lowerMessage.includes('price') || lowerMessage.includes('cost') ||
-        lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do')) {
+        lowerMessage.includes('how do i buy') || lowerMessage.includes('can you do') ||
+        lowerMessage.includes('what about') || lowerMessage.includes('outdoor') ||
+        lowerMessage.includes('gear') || lowerMessage.includes('clothing') ||
+        lowerMessage.includes('earrings') || lowerMessage.includes('necklace') ||
+        lowerMessage.includes('ring') || lowerMessage.includes('bag') ||
+        lowerMessage.includes('home') || lowerMessage.includes('accessories')) {
 
         // Try to find specific products first
         const specificProducts = await searchSpecificProducts(message);
