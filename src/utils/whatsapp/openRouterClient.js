@@ -27,7 +27,7 @@ export const sendPromptToOpenRouter = async(prompt, model = DEFAULT_MODEL) => {
 
         return response.data.choices[0].message.content;
     } catch (error) {
-        console.error('OpenRouter API error:', error.response ? .data || error.message);
+        console.error('OpenRouter API error:', error.response && error.response.data || error.message);
         throw error;
     }
 };
