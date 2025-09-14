@@ -375,20 +375,10 @@ async function handleChatbots(req, res, pathSegments) {
                 data: {
                     name: name.trim(),
                     type: type.toUpperCase(), // FLOW or PROMPT
-                    description: description || '',
-                    prompt: prompt || '',
                     isActive: true,
                     workspaceId: 'test-workspace-id',
-                    settings: {
-                        temperature: temperature || 0.7,
-                        maxTokens: maxTokens || 150,
-                        model: 'gpt-3.5-turbo'
-                    },
-                    metadata: {
-                        source: 'whatsapp_marketplace',
-                        createdVia: 'chatbot_builder',
-                        version: '1.0'
-                    }
+                    accuracy: 0,
+                    totalConversations: 0
                 }
             });
 
