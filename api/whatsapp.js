@@ -231,6 +231,10 @@ export default async function handler(req, res) {
 
         if (pathSegments[0] === 'bot-interact') {
             return handleBotInteraction(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'fix-prompt-bots') {
+            return handleFixPromptBots(req, res, pathSegments);
         } else if (pathSegments[0] === 'conversations') {
             return handleConversations(req, res, pathSegments);
         } else if (pathSegments[0] === 'orders') {
@@ -423,19 +427,13 @@ async function handleChatbots(req, res, pathSegments) {
             });
 
             // If it's a PROMPT bot, create the prompt configuration
-            if (type.toUpperCase() === 'PROMPT' && prompt) {
+            if (type.toUpperCase() === 'PROMPT') {
                 await prisma.promptBot.create({
                     data: {
                         chatbotId: newChatbot.id,
-                        prompt: prompt,
-                        temperature: temperature || 0.7,
-                        maxTokens: maxTokens || 150,
-                        model: 'gpt-3.5-turbo',
-                        settings: {
-                            temperature: temperature || 0.7,
-                            maxTokens: maxTokens || 150,
-                            model: 'gpt-3.5-turbo'
-                        }
+                        prompt: prompt || "You are a helpful AI shopping assistant for an e-commerce store. You help customers find products, answer questions about orders, and provide support. Always be friendly and professional.",
+                        modelUsed: 'gpt-3.5-turbo',
+                        temperature: temperature || 0.7
                     }
                 });
             }
@@ -578,7 +576,7 @@ async function handleFlowBot(chatbot, message, sessionId) {
     }
 
     // Handle product search - expanded keywords
-    if (lowerMessage.includes('product') || lowerMessage.includes('browse') || 
+    if (lowerMessage.includes('product') || lowerMessage.includes('browse') ||
         lowerMessage.includes('what do you have') || lowerMessage.includes('in stock') ||
         lowerMessage.includes('fitness') || lowerMessage.includes('buy') ||
         lowerMessage.includes('looking for') || lowerMessage.includes('want') ||
@@ -616,7 +614,7 @@ async function handleFlowBot(chatbot, message, sessionId) {
 
         return productList;
     }
-    
+
     // Handle specific product queries (like "Whitney Pullover", "14k earrings", etc.)
     if (message.length > 3 && !lowerMessage.includes('help') && !lowerMessage.includes('cart') && !lowerMessage.includes('order')) {
         // Search for specific products
@@ -636,7 +634,7 @@ async function handleFlowBot(chatbot, message, sessionId) {
                 category: true
             }
         });
-        
+
         if (products.length > 0) {
             let response = `I found ${products.length} product(s) matching "${message}":\n\n`;
             products.forEach((product, index) => {
@@ -646,12 +644,12 @@ async function handleFlowBot(chatbot, message, sessionId) {
             return response;
         }
     }
-    
+
     // Handle order command
     if (lowerMessage.includes('order') || lowerMessage.includes('checkout')) {
         return "To place an order, first add some products to your cart by searching for them, then type 'order' to checkout!";
     }
-    
+
     // Default response
     return `Hello! I'm ${chatbot.name}. How can I help you today?\n\nYou can:\n• Search for products\n• Ask about our inventory\n• Get help with orders\n\nJust let me know what you need!`;
 }
@@ -679,9 +677,9 @@ async function handlePromptBot(chatbot, message) {
     }
 
     // Handle product search with AI-like responses - expanded keywords
-    if (lowerMessage.includes('product') || lowerMessage.includes('buy') || 
+    if (lowerMessage.includes('product') || lowerMessage.includes('buy') ||
         lowerMessage.includes('what do you have') || lowerMessage.includes('in stock') ||
-        lowerMessage.includes('fitness') || lowerMessage.includes('looking for') || 
+        lowerMessage.includes('fitness') || lowerMessage.includes('looking for') ||
         lowerMessage.includes('want') || lowerMessage.includes('anything for') ||
         lowerMessage.includes('show me') || lowerMessage.includes('jewelry') ||
         lowerMessage.includes('smartphone') || lowerMessage.includes('phone') ||
@@ -729,7 +727,7 @@ async function handlePromptBot(chatbot, message) {
 
         return response;
     }
-    
+
     // Handle specific product queries (like "Whitney Pullover", "14k earrings", etc.)
     if (message.length > 3 && !lowerMessage.includes('help') && !lowerMessage.includes('cart') && !lowerMessage.includes('order')) {
         // Search for specific products
@@ -749,7 +747,7 @@ async function handlePromptBot(chatbot, message) {
                 category: true
             }
         });
-        
+
         if (products.length > 0) {
             let response = `Great! I found ${products.length} product(s) matching "${message}":\n\n`;
             products.forEach((product, index) => {
@@ -759,14 +757,70 @@ async function handlePromptBot(chatbot, message) {
             return response;
         }
     }
-    
+
     // Handle order command
     if (lowerMessage.includes('order') || lowerMessage.includes('checkout')) {
         return "I'd be happy to help you place an order! First, let's add some products to your cart by searching for them, then we can proceed to checkout.";
     }
-    
+
     // Default AI-like response
     return `Hello! I'm ${chatbot.name}, your AI shopping assistant. I'm here to help you find products, answer questions, and make your shopping experience great! What can I help you with today?`;
+}
+
+// Handle fix prompt bots endpoint
+async function handleFixPromptBots(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        try {
+            // Find all PROMPT type chatbots without prompt configurations
+            const promptChatbots = await prisma.chatbot.findMany({
+                where: {
+                    type: 'PROMPT'
+                },
+                include: {
+                    prompts: true
+                }
+            });
+
+            let fixedCount = 0;
+            for (const chatbot of promptChatbots) {
+                if (!chatbot.prompts || chatbot.prompts.length === 0) {
+                    await prisma.promptBot.create({
+                        data: {
+                            chatbotId: chatbot.id,
+                            prompt: "You are a helpful AI shopping assistant for an e-commerce store. You help customers find products, answer questions about orders, and provide support. Always be friendly and professional.",
+                            modelUsed: 'gpt-3.5-turbo',
+                            temperature: 0.7
+                        }
+                    });
+                    fixedCount++;
+                }
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    message: `Fixed ${fixedCount} prompt bots`,
+                    fixedCount: fixedCount
+                },
+                timestamp: new Date().toISOString()
+            });
+
+        } catch (error) {
+            console.error('Error fixing prompt bots:', error);
+            return res.status(500).json({
+                success: false,
+                error: {
+                    message: 'Failed to fix prompt bots',
+                    details: error.message
+                }
+            });
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
 }
 
 // Handle conversations endpoints
