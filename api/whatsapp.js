@@ -679,6 +679,11 @@ function isConversationalQuery(message) {
         'instead',
         'i changed my mind',
         'for my',
+        'show me',
+        'do you have',
+        'any',
+        'recommend',
+        'suggest',
         'for a',
         'i like',
         'i prefer',
@@ -742,6 +747,11 @@ Respond naturally and helpfully:`;
         }
     } catch (error) {
         console.error('❌ LLM Error:', error);
+        console.error('📊 LLM Error details:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data
+        });
     }
     
     return null; // Fall back to rule-based logic
@@ -1265,11 +1275,22 @@ async function handlePromptBot(chatbot, message, context = null) {
         });
 
         if (products.length > 0) {
-            let response = `Great! I found ${products.length} product(s) matching "${message}":\n\n`;
+            // More conversational response
+            let response = `Great! I found some products that match your search for "${message}":\n\n`;
             products.forEach((product, index) => {
                 response += `${index + 1}. ${product.title}\nPrice: $${product.price}\nCategory: ${product.category}\n\n`;
             });
-            response += "Type the product name or number to view details!";
+            response += "Type the product name or number to view details!\n\n";
+            
+            // Add contextual emoji and follow-up
+            if (lowerMessage.includes('earring') || lowerMessage.includes('jewelry')) {
+                response += "💎 Our jewelry collection is quite extensive! Are you shopping for a special occasion or just treating yourself?";
+            } else if (lowerMessage.includes('outdoor') || lowerMessage.includes('camp')) {
+                response += "🏕️ Perfect for outdoor adventures! Are you planning a camping trip or just need some gear for hiking?";
+            } else if (lowerMessage.includes('clothing') || lowerMessage.includes('wear')) {
+                response += "👕 We have a great selection of clothing! What style are you looking for?";
+            }
+            
             return response;
         }
     }
