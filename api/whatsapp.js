@@ -1403,8 +1403,9 @@ async function handleConversations(req, res, pathSegments) {
         try {
             // Check if this is a request for messages of a specific conversation
             // URL pattern: /api/whatsapp?path=conversations/{conversationId}/messages
-            if (pathSegments.length >= 2 && pathSegments[1] === 'messages') {
-                const conversationId = pathSegments[0];
+            // pathSegments will be: ['conversations', 'conversationId', 'messages']
+            if (pathSegments.length >= 3 && pathSegments[0] === 'conversations' && pathSegments[2] === 'messages') {
+                const conversationId = pathSegments[1];
                 return handleConversationMessages(req, res, conversationId);
             }
 
