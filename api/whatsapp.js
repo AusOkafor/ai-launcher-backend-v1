@@ -243,6 +243,10 @@ export default async function handler(req, res) {
 
         if (pathSegments[0] === 'test-llm') {
             return handleTestLLM(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'debug-frontend') {
+            return handleDebugFrontend(req, res, pathSegments);
         } else if (pathSegments[0] === 'conversations') {
             return handleConversations(req, res, pathSegments);
         } else if (pathSegments[0] === 'orders') {
@@ -1338,6 +1342,51 @@ async function handleTestLLM(req, res, pathSegments) {
                     message: 'LLM test failed',
                     details: error.message
                 }
+            });
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle debug frontend endpoint
+async function handleDebugFrontend(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        try {
+            console.log('🔍 Frontend Debug Request:', {
+                method: req.method,
+                url: req.url,
+                headers: req.headers,
+                origin: req.headers.origin,
+                userAgent: req.headers['user-agent']
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: 'Frontend connection successful!',
+                data: {
+                    timestamp: new Date().toISOString(),
+                    backendUrl: 'https://ai-launcher-backend-v1.vercel.app',
+                    conversationsEndpoint: '/api/whatsapp?path=conversations',
+                    conversationsCount: 5,
+                    sampleConversation: {
+                        id: 'sample-id',
+                        sessionId: 'test-session',
+                        customerName: 'Customer sion',
+                        status: 'active',
+                        lastMessage: 'No messages yet',
+                        chatbot: { name: 'Customer Support Bot' }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('❌ Debug Frontend Error:', error);
+            return res.status(500).json({
+                success: false,
+                error: { message: 'Debug failed' }
             });
         }
     }
