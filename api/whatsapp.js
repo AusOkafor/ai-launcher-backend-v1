@@ -762,6 +762,8 @@ async function getOrCreateConversationContext(sessionId, botId) {
             console.log('📝 Creating new conversation context');
             // Create new conversation with unique workspaceId
             const uniqueWorkspaceId = `workspace-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+            console.log('🏗️ Creating conversation with workspaceId:', uniqueWorkspaceId);
+            
             conversation = await prisma.conversation.create({
                 data: {
                     sessionId: sessionId,
@@ -778,6 +780,14 @@ async function getOrCreateConversationContext(sessionId, botId) {
                     }
                 }
             });
+            console.log('✅ New conversation created:', conversation.id);
+            console.log('📊 New conversation details:', {
+                id: conversation.id,
+                sessionId: conversation.sessionId,
+                chatbotId: conversation.chatbotId,
+                workspaceId: conversation.workspaceId,
+                status: conversation.status
+            });
         } else {
             console.log('✅ Found existing conversation context:', conversation.metadata);
         }
@@ -785,6 +795,11 @@ async function getOrCreateConversationContext(sessionId, botId) {
         return conversation;
     } catch (error) {
         console.error('❌ Error getting conversation context:', error);
+        console.error('📊 Conversation context error details:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
         return null;
     }
 }
@@ -856,6 +871,9 @@ async function handleBotInteraction(req, res, pathSegments) {
 
             // Save the user message and bot response to the database
             try {
+                console.log('🔍 Starting message saving process...');
+                console.log('📝 Looking for conversation with sessionId:', contextSessionId, 'and chatbotId:', botId);
+                
                 // Find the conversation
                 const conversation = await prisma.conversation.findFirst({
                     where: {
@@ -865,8 +883,17 @@ async function handleBotInteraction(req, res, pathSegments) {
                 });
 
                 if (conversation) {
+                    console.log('✅ Found existing conversation:', conversation.id);
+                    console.log('📊 Conversation details:', {
+                        id: conversation.id,
+                        workspaceId: conversation.workspaceId,
+                        status: conversation.status,
+                        createdAt: conversation.createdAt
+                    });
+                    
                     // Save user message
-                    await prisma.conversationMessage.create({
+                    console.log('💬 Saving user message...');
+                    const userMessage = await prisma.conversationMessage.create({
                         data: {
                             conversationId: conversation.id,
                             workspaceId: conversation.workspaceId,
@@ -875,9 +902,11 @@ async function handleBotInteraction(req, res, pathSegments) {
                             phone: userId || null
                         }
                     });
+                    console.log('✅ User message saved:', userMessage.id);
 
                     // Save bot response
-                    await prisma.conversationMessage.create({
+                    console.log('🤖 Saving bot response...');
+                    const botMessage = await prisma.conversationMessage.create({
                         data: {
                             conversationId: conversation.id,
                             workspaceId: conversation.workspaceId,
@@ -886,17 +915,27 @@ async function handleBotInteraction(req, res, pathSegments) {
                             phone: 'bot'
                         }
                     });
+                    console.log('✅ Bot message saved:', botMessage.id);
 
                     // Update conversation lastActiveAt
+                    console.log('⏰ Updating conversation lastActiveAt...');
                     await prisma.conversation.update({
                         where: { id: conversation.id },
                         data: { lastActiveAt: new Date() }
                     });
 
-                    console.log('✅ Messages saved to database for conversation:', conversation.id);
+                    console.log('🎉 All messages saved to database for conversation:', conversation.id);
+                } else {
+                    console.log('❌ No conversation found for sessionId:', contextSessionId, 'and chatbotId:', botId);
+                    console.log('🔍 This means the conversation context creation failed earlier');
                 }
             } catch (error) {
                 console.error('❌ Error saving messages to database:', error);
+                console.error('📊 Error details:', {
+                    message: error.message,
+                    code: error.code,
+                    stack: error.stack
+                });
                 // Don't fail the request if message saving fails
             }
 
