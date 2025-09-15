@@ -972,7 +972,7 @@ async function handleBotInteraction(req, res, pathSegments) {
 }
 
 // Handle flow-based bot interactions
-async function handleFlowBot(chatbot, message, sessionId, context = null) {
+async function handleFlowBot(chatbot, message, contextSessionId, context = null) {
     const lowerMessage = message.toLowerCase();
 
     // Extract context information
@@ -1279,7 +1279,7 @@ async function handlePromptBot(chatbot, message, context = null) {
             lastTopic: currentTopic,
             conversationFlow: conversationFlow.slice(-10) // Keep last 10 interactions
         };
-        await updateConversationContext(sessionId, chatbot.id, updatedContext);
+        await updateConversationContext(contextSessionId, chatbot.id, updatedContext);
     }
 
     // Default AI-like response
