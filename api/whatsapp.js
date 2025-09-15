@@ -848,6 +848,50 @@ async function handleBotInteraction(req, res, pathSegments) {
                 response = await handlePromptBot(chatbot, message, context);
             }
 
+            // Save the user message and bot response to the database
+            try {
+                // Find the conversation
+                const conversation = await prisma.conversation.findFirst({
+                    where: {
+                        sessionId: contextSessionId,
+                        chatbotId: botId
+                    }
+                });
+
+                if (conversation) {
+                    // Save user message
+                    await prisma.conversationMessage.create({
+                        data: {
+                            conversationId: conversation.id,
+                            fromBot: false,
+                            content: message,
+                            phone: userId || null
+                        }
+                    });
+
+                    // Save bot response
+                    await prisma.conversationMessage.create({
+                        data: {
+                            conversationId: conversation.id,
+                            fromBot: true,
+                            content: response,
+                            phone: 'bot'
+                        }
+                    });
+
+                    // Update conversation lastActiveAt
+                    await prisma.conversation.update({
+                        where: { id: conversation.id },
+                        data: { lastActiveAt: new Date() }
+                    });
+
+                    console.log('✅ Messages saved to database for conversation:', conversation.id);
+                }
+            } catch (error) {
+                console.error('❌ Error saving messages to database:', error);
+                // Don't fail the request if message saving fails
+            }
+
             // Update chatbot metrics
             await updateChatbotMetrics(botId, 'conversation');
 
