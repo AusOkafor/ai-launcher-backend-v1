@@ -247,6 +247,10 @@ export default async function handler(req, res) {
 
         if (pathSegments[0] === 'debug-frontend') {
             return handleDebugFrontend(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'debug-db') {
+            return handleDebugDB(req, res, pathSegments);
         } else if (pathSegments[0] === 'conversations') {
             return handleConversations(req, res, pathSegments);
         } else if (pathSegments[0] === 'orders') {
@@ -1435,6 +1439,83 @@ async function handleDebugFrontend(req, res, pathSegments) {
             return res.status(500).json({
                 success: false,
                 error: { message: 'Debug failed' }
+            });
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle debug database endpoint
+async function handleDebugDB(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        try {
+            console.log('🔍 Testing database connection...');
+
+            // Test 1: Count existing conversations
+            const conversationCount = await prisma.conversation.count();
+            console.log('📊 Total conversations:', conversationCount);
+
+            // Test 2: Count existing messages
+            const messageCount = await prisma.conversationMessage.count();
+            console.log('📊 Total messages:', messageCount);
+
+            // Test 3: Try to create a test conversation
+            const testWorkspaceId = `test-workspace-${Date.now()}`;
+            const testConversation = await prisma.conversation.create({
+                data: {
+                    sessionId: `test-session-${Date.now()}`,
+                    chatbotId: 'cmfa1jabb0001xf6zk934fdj2',
+                    workspaceId: testWorkspaceId,
+                    status: 'ACTIVE'
+                }
+            });
+            console.log('✅ Test conversation created:', testConversation.id);
+
+            // Test 4: Try to create a test message
+            const testMessage = await prisma.conversationMessage.create({
+                data: {
+                    conversationId: testConversation.id,
+                    workspaceId: testWorkspaceId,
+                    fromBot: false,
+                    content: 'Test message from debug endpoint',
+                    phone: 'debug-test'
+                }
+            });
+            console.log('✅ Test message created:', testMessage.id);
+
+            // Test 5: Clean up test data
+            await prisma.conversationMessage.delete({
+                where: { id: testMessage.id }
+            });
+            await prisma.conversation.delete({
+                where: { id: testConversation.id }
+            });
+            console.log('🧹 Test data cleaned up');
+
+            return res.status(200).json({
+                success: true,
+                message: 'Database connection successful!',
+                data: {
+                    conversationCount,
+                    messageCount,
+                    testConversationId: testConversation.id,
+                    testMessageId: testMessage.id,
+                    timestamp: new Date().toISOString()
+                }
+            });
+        } catch (error) {
+            console.error('❌ Database test failed:', error);
+            return res.status(500).json({
+                success: false,
+                error: { 
+                    message: 'Database test failed',
+                    details: error.message,
+                    stack: error.stack
+                }
             });
         }
     }
