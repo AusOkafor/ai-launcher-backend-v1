@@ -756,11 +756,13 @@ async function getOrCreateConversationContext(sessionId, botId) {
 
         if (!conversation) {
             console.log('📝 Creating new conversation context');
-            // Create new conversation
+            // Create new conversation with unique workspaceId
+            const uniqueWorkspaceId = `workspace-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
             conversation = await prisma.conversation.create({
                 data: {
                     sessionId: sessionId,
                     chatbotId: botId,
+                    workspaceId: uniqueWorkspaceId, // Unique workspace ID with timestamp and random chars
                     status: 'ACTIVE',
                     metadata: {
                         context: {
@@ -863,6 +865,7 @@ async function handleBotInteraction(req, res, pathSegments) {
                     await prisma.conversationMessage.create({
                         data: {
                             conversationId: conversation.id,
+                            workspaceId: conversation.workspaceId,
                             fromBot: false,
                             content: message,
                             phone: userId || null
@@ -873,6 +876,7 @@ async function handleBotInteraction(req, res, pathSegments) {
                     await prisma.conversationMessage.create({
                         data: {
                             conversationId: conversation.id,
+                            workspaceId: conversation.workspaceId,
                             fromBot: true,
                             content: response,
                             phone: 'bot'
