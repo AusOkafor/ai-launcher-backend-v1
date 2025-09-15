@@ -768,7 +768,7 @@ async function getOrCreateConversationContext(sessionId, botId) {
                 data: {
                     sessionId: sessionId,
                     chatbotId: botId,
-                    workspaceId: uniqueWorkspaceId, // Unique workspace ID with timestamp and random chars
+                    workspaceId: null, // Set to null since workspaceId is optional and we don't have a workspace
                     status: 'ACTIVE',
                     metadata: {
                         context: {
@@ -896,7 +896,7 @@ async function handleBotInteraction(req, res, pathSegments) {
                     const userMessage = await prisma.conversationMessage.create({
                         data: {
                             conversationId: conversation.id,
-                            workspaceId: conversation.workspaceId,
+                            workspaceId: null, // Set to null since workspaceId is optional
                             fromBot: false,
                             content: message,
                             phone: userId || null
@@ -909,7 +909,7 @@ async function handleBotInteraction(req, res, pathSegments) {
                     const botMessage = await prisma.conversationMessage.create({
                         data: {
                             conversationId: conversation.id,
-                            workspaceId: conversation.workspaceId,
+                            workspaceId: null, // Set to null since workspaceId is optional
                             fromBot: true,
                             content: response,
                             phone: 'bot'
@@ -1503,12 +1503,11 @@ async function handleDebugDB(req, res, pathSegments) {
             console.log('📊 Total messages:', messageCount);
 
             // Test 3: Try to create a test conversation
-            const testWorkspaceId = `test-workspace-${Date.now()}`;
             const testConversation = await prisma.conversation.create({
                 data: {
                     sessionId: `test-session-${Date.now()}`,
                     chatbotId: 'cmfa1jabb0001xf6zk934fdj2',
-                    workspaceId: testWorkspaceId,
+                    workspaceId: null, // Set to null since workspaceId is optional
                     status: 'ACTIVE'
                 }
             });
@@ -1518,7 +1517,7 @@ async function handleDebugDB(req, res, pathSegments) {
             const testMessage = await prisma.conversationMessage.create({
                 data: {
                     conversationId: testConversation.id,
-                    workspaceId: testWorkspaceId,
+                    workspaceId: null, // Set to null since workspaceId is optional
                     fromBot: false,
                     content: 'Test message from debug endpoint',
                     phone: 'debug-test'
