@@ -1401,6 +1401,13 @@ async function handleDebugFrontend(req, res, pathSegments) {
 async function handleConversations(req, res, pathSegments) {
     if (req.method === 'GET') {
         try {
+            // Check if this is a request for messages of a specific conversation
+            // URL pattern: /api/whatsapp?path=conversations/{conversationId}/messages
+            if (pathSegments.length >= 2 && pathSegments[1] === 'messages') {
+                const conversationId = pathSegments[0];
+                return handleConversationMessages(req, res, conversationId);
+            }
+
             // Get query parameters for filtering and pagination
             const { status, search, limit = 20, offset = 0 } = req.query;
             
@@ -1502,6 +1509,52 @@ async function handleConversations(req, res, pathSegments) {
             return res.status(500).json({
                 success: false,
                 error: { message: 'Failed to fetch conversations' }
+            });
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle conversation messages
+async function handleConversationMessages(req, res, conversationId) {
+    if (req.method === 'GET') {
+        try {
+            console.log('🔍 Fetching messages for conversation:', conversationId);
+
+            // Fetch messages for the specific conversation
+            const messages = await prisma.conversationMessage.findMany({
+                where: {
+                    conversationId: conversationId
+                },
+                orderBy: {
+                    timestamp: 'asc'
+                },
+                select: {
+                    id: true,
+                    content: true,
+                    fromBot: true,
+                    timestamp: true,
+                    intent: true,
+                    aiSummary: true
+                }
+            });
+
+            console.log(`✅ Found ${messages.length} messages for conversation ${conversationId}`);
+
+            return res.status(200).json({
+                success: true,
+                data: messages,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('❌ Error fetching conversation messages:', error);
+            return res.status(500).json({
+                success: false,
+                error: { message: 'Failed to fetch conversation messages' }
             });
         }
     }
