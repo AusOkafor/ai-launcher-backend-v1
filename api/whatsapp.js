@@ -660,10 +660,11 @@ function isConversationalQuery(message) {
 
     // Conversational patterns that need LLM understanding
     const conversationalPatterns = [
-        'am just going for',
-        'i am planning',
+        'what do you have',
+        'what is in stock',
+        'i want to buy',
+        'i want to purchase',
         'i am looking for',
-        'i want to',
         'i need',
         'can you help me',
         'what do you think',
@@ -671,6 +672,8 @@ function isConversationalQuery(message) {
         'i am confused',
         'help me decide',
         'i am not sure',
+        'am just going for',
+        'i am planning',
         'what about',
         'actually',
         'instead',
@@ -1139,9 +1142,13 @@ async function handlePromptBot(chatbot, message, context = null) {
 
     // Try LLM-powered response first for conversational queries
     if (isConversationalQuery(message)) {
+        console.log('🤖 Using LLM for conversational query:', message);
         const llmResponse = await getLLMResponse(chatbot, message, contextData, promptBot);
         if (llmResponse) {
+            console.log('✅ LLM response received:', llmResponse.substring(0, 100) + '...');
             return llmResponse;
+        } else {
+            console.log('❌ LLM response failed, falling back to basic logic');
         }
     }
 
