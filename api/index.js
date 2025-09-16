@@ -1,11 +1,19 @@
 import { PrismaClient } from '@prisma/client'
 import dotenv from 'dotenv'
 
+let prisma;
+
+if (process.env.NODE_ENV === 'production') {
+    prisma = new PrismaClient();
+} else {
+    if (!global.prisma) {
+        global.prisma = new PrismaClient();
+    }
+    prisma = global.prisma;
+}
+
 // Load environment variables
 dotenv.config()
-
-// Replace createFreshPrismaClient and all per-request client creation with a single top-level instance:
-const prisma = new PrismaClient({ log: ['error'] });
 
 // Helper function to set CORS headers
 function setCorsHeaders(req, res) {
