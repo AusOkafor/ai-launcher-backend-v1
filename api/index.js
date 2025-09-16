@@ -51,6 +51,19 @@ export default async function handler(req, res) {
             return handleAgentStatus(req, res, pathSegments);
         }
 
+        if (pathSegments[0] === 'test-prisma') {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    prismaDefined: typeof prisma !== 'undefined',
+                    prismaType: typeof prisma,
+                    nodeEnv: process.env.NODE_ENV,
+                    hasGlobalPrisma: typeof global.prisma !== 'undefined',
+                    prismaObject: !!prisma
+                }
+            });
+        }
+
         // Handle generate endpoint specifically
         if (req.url.match(/^\/api\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
             return handleGenerateLaunch(req, res);
@@ -74,7 +87,11 @@ async function handleDashboard(req, res, pathSegments) {
     if (req.method === 'GET') {
         try {
             console.log('🔍 Dashboard: Starting data fetch...');
-            
+
+            // Create Prisma client inside function to avoid scope issues
+            const localPrisma = new PrismaClient();
+            console.log('🔍 Dashboard: Prisma client created:', typeof localPrisma);
+
             // Get basic metrics
             const [
                 totalOrders,
@@ -85,21 +102,21 @@ async function handleDashboard(req, res, pathSegments) {
                 whatsappOrders,
                 whatsappConversations
             ] = await Promise.all([
-                prisma.order.count(),
-                prisma.product.count(),
-                prisma.customer.count(),
-                prisma.order.aggregate({
+                localPrisma.order.count(),
+                localPrisma.product.count(),
+                localPrisma.customer.count(),
+                localPrisma.order.aggregate({
                     _sum: { total: true },
                     where: { status: 'CONFIRMED' }
                 }),
-                prisma.order.findMany({
+                localPrisma.order.findMany({
                     orderBy: { createdAt: 'desc' },
                     take: 5,
                     include: {
                         customer: true
                     }
                 }),
-                prisma.order.count({
+                localPrisma.order.count({
                     where: {
                         metadata: {
                             path: ['source'],
@@ -107,7 +124,7 @@ async function handleDashboard(req, res, pathSegments) {
                         }
                     }
                 }),
-                prisma.chatLog.count()
+                localPrisma.chatLog.count()
             ]);
 
             console.log('✅ Dashboard: Data fetched successfully');
@@ -200,6 +217,10 @@ async function handleAgentStatus(req, res, pathSegments) {
         try {
             console.log('🔍 Agent Status: Starting data fetch...');
 
+            // Create Prisma client inside function to avoid scope issues
+            const localPrisma = new PrismaClient();
+            console.log('🔍 Agent Status: Prisma client created:', typeof localPrisma);
+
             // Get recent activity data
             const [
                 recentLaunches,
@@ -207,7 +228,7 @@ async function handleAgentStatus(req, res, pathSegments) {
                 recentOrders,
                 recentChats
             ] = await Promise.all([
-                prisma.launch.findMany({
+                localPrisma.launch.findMany({
                     where: {
                         createdAt: {
                             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -215,7 +236,7 @@ async function handleAgentStatus(req, res, pathSegments) {
                     },
                     select: { status: true, createdAt: true }
                 }),
-                prisma.product.findMany({
+                localPrisma.product.findMany({
                     where: {
                         createdAt: {
                             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -223,7 +244,7 @@ async function handleAgentStatus(req, res, pathSegments) {
                     },
                     select: { id: true, createdAt: true }
                 }),
-                prisma.order.findMany({
+                localPrisma.order.findMany({
                     where: {
                         createdAt: {
                             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -231,7 +252,7 @@ async function handleAgentStatus(req, res, pathSegments) {
                     },
                     select: { status: true, createdAt: true }
                 }),
-                prisma.chatLog.findMany({
+                localPrisma.chatLog.findMany({
                     where: {
                         createdAt: {
                             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
@@ -253,8 +274,7 @@ async function handleAgentStatus(req, res, pathSegments) {
             const agentStatus = {
                 success: true,
                 data: {
-                    agents: [
-                        {
+                    agents: [{
                             id: 'product-launch',
                             name: 'Product Launch AI',
                             status: getAgentStatus(
@@ -334,8 +354,11 @@ async function handleGenerateLaunch(req, res) {
     try {
         const launchId = req.url.split('/')[3];
 
+        // Create Prisma client inside function to avoid scope issues
+        const localPrisma = new PrismaClient();
+
         // Get the launch
-        const launch = await prisma.launch.findFirst({
+        const launch = await localPrisma.launch.findFirst({
             where: { id: launchId },
             include: {
                 product: true
@@ -350,17 +373,19 @@ async function handleGenerateLaunch(req, res) {
         }
 
         // Update status to GENERATING
-        await prisma.launch.update({
+        await localPrisma.launch.update({
             where: { id: launchId },
             data: { status: 'GENERATING' }
         });
 
         // Import AI service
-        const { aiService } = await import('../src/services/ai.js');
+        const { aiService } = await
+        import ('../src/services/ai.js');
         await aiService.initialize();
 
         // Import AI launch service
-        const { aiLaunchService } = await import('../src/services/aiLaunchService.js');
+        const { aiLaunchService } = await
+        import ('../src/services/aiLaunchService.js');
 
         // Generate AI content
         const aiResponse = await aiService.generateText(`
@@ -400,7 +425,7 @@ Make it compelling and conversion-focused.
         };
 
         // Update launch with generated content
-        const updatedLaunch = await prisma.launch.update({
+        const updatedLaunch = await localPrisma.launch.update({
             where: { id: launchId },
             data: {
                 status: 'COMPLETED',
