@@ -65,12 +65,16 @@ export default async function handler(req, res) {
 
     // --- Dashboard endpoints ---
     if (path === 'dashboard' && req.method === 'GET') {
+        const client = createFreshPrismaClient();
+        console.log('DEBUG: Prisma client keys (dashboard):', Object.keys(client));
         setCorsHeaders(req, res);
-        return await handleDashboard(req, res, createFreshPrismaClient());
+        return await handleDashboard(req, res, client);
     }
     if (path === 'agent-status' && req.method === 'GET') {
+        const client = createFreshPrismaClient();
+        console.log('DEBUG: Prisma client keys (agent-status):', Object.keys(client));
         setCorsHeaders(req, res);
-        return await handleAgentStatus(req, res, createFreshPrismaClient());
+        return await handleAgentStatus(req, res, client);
     }
 
     try {
@@ -211,6 +215,7 @@ Make it compelling and conversion-focused.
 
 // Handle dashboard endpoints
 async function handleDashboard(req, res, prisma) {
+    console.log('DEBUG: prisma in handleDashboard:', prisma);
     try {
         const { start, end } = getDateRange(7);
         const yesterday = new Date();
@@ -535,6 +540,7 @@ async function handleDashboard(req, res, prisma) {
 
 // Handle agent status endpoints
 async function handleAgentStatus(req, res, prisma) {
+    console.log('DEBUG: prisma in handleAgentStatus:', prisma);
     try {
         // Get agent status based on recent activity and data
         const [
