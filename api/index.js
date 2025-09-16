@@ -4,12 +4,8 @@ import dotenv from 'dotenv'
 // Load environment variables
 dotenv.config()
 
-// Create a fresh Prisma client for each request
-function createFreshPrismaClient() {
-    return new PrismaClient({
-        log: ['error']
-    })
-}
+// Replace createFreshPrismaClient and all per-request client creation with a single top-level instance:
+const prisma = new PrismaClient({ log: ['error'] });
 
 // Helper function to set CORS headers
 function setCorsHeaders(req, res) {
@@ -61,20 +57,15 @@ export default async function handler(req, res) {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const { pathname, searchParams } = url;
     const path = searchParams.get('path');
-    let prismaClient = null
 
     // --- Dashboard endpoints ---
     if (path === 'dashboard' && req.method === 'GET') {
-        const client = createFreshPrismaClient();
-        console.log('DEBUG: Prisma client keys (dashboard):', Object.keys(client));
         setCorsHeaders(req, res);
-        return await handleDashboard(req, res, client);
+        return await handleDashboard(req, res, prisma);
     }
     if (path === 'agent-status' && req.method === 'GET') {
-        const client = createFreshPrismaClient();
-        console.log('DEBUG: Prisma client keys (agent-status):', Object.keys(client));
         setCorsHeaders(req, res);
-        return await handleAgentStatus(req, res, client);
+        return await handleAgentStatus(req, res, prisma);
     }
 
     try {
@@ -83,10 +74,9 @@ export default async function handler(req, res) {
         if (pathname.match(/^\/api\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
             try {
                 const launchId = pathname.split('/')[3]
-                prismaClient = createFreshPrismaClient()
 
                 // Get the launch
-                const launch = await prismaClient.launch.findFirst({
+                const launch = await prisma.launch.findFirst({
                     where: { id: launchId },
                     include: {
                         product: true
@@ -101,7 +91,7 @@ export default async function handler(req, res) {
                 }
 
                 // Update status to GENERATING
-                await prismaClient.launch.update({
+                await prisma.launch.update({
                     where: { id: launchId },
                     data: { status: 'GENERATING' }
                 })
@@ -153,7 +143,7 @@ Make it compelling and conversion-focused.
                 }
 
                 // Update launch with generated content
-                const updatedLaunch = await prismaClient.launch.update({
+                const updatedLaunch = await prisma.launch.update({
                     where: { id: launchId },
                     data: {
                         status: 'COMPLETED',
@@ -207,15 +197,14 @@ Make it compelling and conversion-focused.
         })
     } finally {
         // Clean up database connection
-        if (prismaClient) {
-            await prismaClient.$disconnect()
-        }
+        // if (prismaClient) { // This line is removed as per the new_code
+        //     await prismaClient.$disconnect()
+        // }
     }
 }
 
 // Handle dashboard endpoints
 async function handleDashboard(req, res, prisma) {
-    console.log('DEBUG: prisma in handleDashboard:', prisma);
     try {
         const { start, end } = getDateRange(7);
         const yesterday = new Date();
@@ -534,13 +523,12 @@ async function handleDashboard(req, res, prisma) {
             details: error.message
         });
     } finally {
-        await prisma.$disconnect();
+        // await prisma.$disconnect(); // This line is removed as per the new_code
     }
 }
 
 // Handle agent status endpoints
 async function handleAgentStatus(req, res, prisma) {
-    console.log('DEBUG: prisma in handleAgentStatus:', prisma);
     try {
         // Get agent status based on recent activity and data
         const [
@@ -705,7 +693,7 @@ async function handleAgentStatus(req, res, prisma) {
             details: error.message
         });
     } finally {
-        await prisma.$disconnect();
+        // await prisma.$disconnect(); // This line is removed as per the new_code
     }
 }
 
