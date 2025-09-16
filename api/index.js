@@ -1,6 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import dotenv from 'dotenv'
 
+// Load environment variables FIRST
+dotenv.config()
+
 let prisma;
 
 if (process.env.NODE_ENV === 'production') {
@@ -11,9 +14,6 @@ if (process.env.NODE_ENV === 'production') {
     }
     prisma = global.prisma;
 }
-
-// Load environment variables
-dotenv.config()
 
 // Helper function to set CORS headers
 function setCorsHeaders(req, res) {
