@@ -52,16 +52,28 @@ export default async function handler(req, res) {
         }
 
         if (pathSegments[0] === 'test-prisma') {
-            return res.status(200).json({
-                success: true,
-                data: {
-                    prismaDefined: typeof prisma !== 'undefined',
-                    prismaType: typeof prisma,
-                    nodeEnv: process.env.NODE_ENV,
-                    hasGlobalPrisma: typeof global.prisma !== 'undefined',
-                    prismaObject: !!prisma
-                }
-            });
+            try {
+                const testPrisma = new PrismaClient();
+                const testCount = await testPrisma.order.count();
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        prismaDefined: typeof prisma !== 'undefined',
+                        prismaType: typeof prisma,
+                        nodeEnv: process.env.NODE_ENV,
+                        hasGlobalPrisma: typeof global.prisma !== 'undefined',
+                        prismaObject: !!prisma,
+                        testPrismaCreated: typeof testPrisma !== 'undefined',
+                        testCount: testCount
+                    }
+                });
+            } catch (error) {
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to create test Prisma client',
+                    details: error.message
+                });
+            }
         }
 
         // Handle generate endpoint specifically
