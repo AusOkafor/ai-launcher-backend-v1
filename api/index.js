@@ -61,20 +61,17 @@ export default async function handler(req, res) {
     const { pathname } = new URL(req.url, `http://${req.headers.host}`)
     let prismaClient = null
 
-    try {
-        // Handle dashboard endpoints
-        if (pathname === '/api/dashboard' && req.method === 'GET') {
-            setCorsHeaders(req, res)
-            prismaClient = createFreshPrismaClient()
-            return await handleDashboard(req, res, prismaClient)
-        }
+    // --- Dashboard endpoints ---
+    if (pathname === '/api/dashboard' && req.method === 'GET') {
+        setCorsHeaders(req, res);
+        return await handleDashboard(req, res, createFreshPrismaClient());
+    }
+    if (pathname === '/api/dashboard/agent-status' && req.method === 'GET') {
+        setCorsHeaders(req, res);
+        return await handleAgentStatus(req, res, createFreshPrismaClient());
+    }
 
-        // Handle agent status endpoint
-        if (pathname === '/api/dashboard/agent-status' && req.method === 'GET') {
-            setCorsHeaders(req, res)
-            prismaClient = createFreshPrismaClient()
-            return await handleAgentStatus(req, res, prismaClient)
-        }
+    try {
 
         // Handle generate endpoint specifically
         if (pathname.match(/^\/api\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
