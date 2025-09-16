@@ -11,6 +11,27 @@ function createFreshPrismaClient() {
     })
 }
 
+// Helper function to set CORS headers
+function setCorsHeaders(req, res) {
+    const origin = req.headers.origin || '*'
+    const allowed = [
+        'http://localhost:8080',
+        'http://localhost:8081',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://stratosphere-ecom-ai.vercel.app',
+        'https://ai-launcher-frontend.vercel.app'
+    ]
+    if (allowed.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin)
+        res.setHeader('Vary', 'Origin')
+    } else {
+        res.setHeader('Access-Control-Allow-Origin', '*')
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+}
+
 export default async function handler(req, res) {
     // Set CORS headers for serverless catch-all (fallback)
     const origin = req.headers.origin || '*'
@@ -43,49 +64,15 @@ export default async function handler(req, res) {
     try {
         // Handle dashboard endpoints
         if (pathname === '/api/dashboard' && req.method === 'GET') {
+            setCorsHeaders(req, res)
             prismaClient = createFreshPrismaClient()
-                // Ensure CORS headers are set before handling the request
-            const origin = req.headers.origin || '*'
-            const allowed = [
-                'http://localhost:8080',
-                'http://localhost:8081',
-                'http://localhost:3000',
-                'http://localhost:3001',
-                'https://stratosphere-ecom-ai.vercel.app',
-                'https://ai-launcher-frontend.vercel.app'
-            ]
-            if (allowed.includes(origin)) {
-                res.setHeader('Access-Control-Allow-Origin', origin)
-                res.setHeader('Vary', 'Origin')
-            } else {
-                res.setHeader('Access-Control-Allow-Origin', '*')
-            }
-            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
             return await handleDashboard(req, res, prismaClient)
         }
 
         // Handle agent status endpoint
         if (pathname === '/api/dashboard/agent-status' && req.method === 'GET') {
+            setCorsHeaders(req, res)
             prismaClient = createFreshPrismaClient()
-                // Ensure CORS headers are set before handling the request
-            const origin = req.headers.origin || '*'
-            const allowed = [
-                'http://localhost:8080',
-                'http://localhost:8081',
-                'http://localhost:3000',
-                'http://localhost:3001',
-                'https://stratosphere-ecom-ai.vercel.app',
-                'https://ai-launcher-frontend.vercel.app'
-            ]
-            if (allowed.includes(origin)) {
-                res.setHeader('Access-Control-Allow-Origin', origin)
-                res.setHeader('Vary', 'Origin')
-            } else {
-                res.setHeader('Access-Control-Allow-Origin', '*')
-            }
-            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
             return await handleAgentStatus(req, res, prismaClient)
         }
 
