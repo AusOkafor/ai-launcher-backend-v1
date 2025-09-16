@@ -44,7 +44,7 @@ export default async function handler(req, res) {
 
         // Route based on path segments
         if (pathSegments[0] === 'dashboard') {
-            return handleDashboard(req, res, pathSegments);
+            return handleDashboardNew(req, res, pathSegments);
         }
 
         if (pathSegments[0] === 'agent-status') {
@@ -95,7 +95,7 @@ export default async function handler(req, res) {
 }
 
 // Handle dashboard endpoints
-async function handleDashboard(req, res, pathSegments) {
+async function handleDashboardNew(req, res, pathSegments) {
     if (req.method === 'GET') {
         try {
             console.log('🔍 Dashboard: Starting data fetch...');
