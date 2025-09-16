@@ -528,6 +528,8 @@ async function handleDashboard(req, res, prisma) {
             error: 'Failed to fetch dashboard data',
             details: error.message
         });
+    } finally {
+        await prisma.$disconnect();
     }
 }
 
@@ -696,6 +698,8 @@ async function handleAgentStatus(req, res, prisma) {
             error: 'Failed to fetch agent status',
             details: error.message
         });
+    } finally {
+        await prisma.$disconnect();
     }
 }
 
