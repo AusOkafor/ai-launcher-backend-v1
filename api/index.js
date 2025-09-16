@@ -75,6 +75,18 @@ export default async function handler(req, res) {
         setCorsHeaders(req, res);
         return await handleAgentStatus(req, res);
     }
+    if (path === 'debug-prisma' && req.method === 'GET') {
+        setCorsHeaders(req, res);
+        return res.status(200).json({
+            success: true,
+            data: {
+                prismaDefined: typeof prisma !== 'undefined',
+                prismaType: typeof prisma,
+                nodeEnv: process.env.NODE_ENV,
+                hasGlobalPrisma: typeof global.prisma !== 'undefined'
+            }
+        });
+    }
 
     try {
 
