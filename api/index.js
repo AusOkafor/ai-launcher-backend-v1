@@ -69,11 +69,11 @@ export default async function handler(req, res) {
     // --- Dashboard endpoints ---
     if (path === 'dashboard' && req.method === 'GET') {
         setCorsHeaders(req, res);
-        return await handleDashboard(req, res, prisma);
+        return await handleDashboard(req, res);
     }
     if (path === 'agent-status' && req.method === 'GET') {
         setCorsHeaders(req, res);
-        return await handleAgentStatus(req, res, prisma);
+        return await handleAgentStatus(req, res);
     }
 
     try {
@@ -212,7 +212,7 @@ Make it compelling and conversion-focused.
 }
 
 // Handle dashboard endpoints
-async function handleDashboard(req, res, prisma) {
+async function handleDashboard(req, res) {
     try {
         const { start, end } = getDateRange(7);
         const yesterday = new Date();
@@ -536,7 +536,7 @@ async function handleDashboard(req, res, prisma) {
 }
 
 // Handle agent status endpoints
-async function handleAgentStatus(req, res, prisma) {
+async function handleAgentStatus(req, res) {
     try {
         // Get agent status based on recent activity and data
         const [
