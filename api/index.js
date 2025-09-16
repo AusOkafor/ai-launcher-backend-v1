@@ -491,7 +491,7 @@ async function handleDashboard(req, res, prisma) {
                 riskDistribution,
                 recentOrders: recentOrders.map(order => ({
                     id: order.id,
-                    customer: order.customer ? .firstName || 'Unknown',
+                    customer: order.customer && order.customer.firstName || 'Unknown',
                     amount: order.total,
                     status: order.status,
                     date: order.createdAt,
