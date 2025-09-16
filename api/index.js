@@ -99,12 +99,9 @@ async function handleDashboardNew(req, res, pathSegments) {
     if (req.method === 'GET') {
         try {
             console.log('🔍 Dashboard: Starting data fetch...');
-
-            // Create Prisma client inside function - same pattern as working test endpoint
+            
+            // EXACT same pattern as working test-prisma endpoint
             const localPrisma = new PrismaClient();
-            console.log('🔍 Dashboard: Prisma client created:', typeof localPrisma);
-
-            // Test simple call first
             const testCount = await localPrisma.order.count();
             console.log('🔍 Dashboard: Test count result:', testCount);
 
@@ -131,7 +128,7 @@ async function handleDashboardNew(req, res, pathSegments) {
                     }
                 }
             });
-            const whatsappConversations = await localPrisma.chatLog.count();
+            const whatsappConversations = await localPrisma.conversation.count();
 
             console.log('✅ Dashboard: Data fetched successfully');
 
@@ -258,7 +255,7 @@ async function handleAgentStatus(req, res, pathSegments) {
                     },
                     select: { status: true, createdAt: true }
                 }),
-                localPrisma.chatLog.findMany({
+                localPrisma.conversation.findMany({
                     where: {
                         createdAt: {
                             gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
