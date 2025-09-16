@@ -58,15 +58,17 @@ export default async function handler(req, res) {
         return
     }
 
-    const { pathname } = new URL(req.url, `http://${req.headers.host}`)
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const { pathname, searchParams } = url;
+    const path = searchParams.get('path');
     let prismaClient = null
 
     // --- Dashboard endpoints ---
-    if (pathname === '/api/dashboard' && req.method === 'GET') {
+    if (path === 'dashboard' && req.method === 'GET') {
         setCorsHeaders(req, res);
         return await handleDashboard(req, res, createFreshPrismaClient());
     }
-    if (pathname === '/api/dashboard/agent-status' && req.method === 'GET') {
+    if (path === 'agent-status' && req.method === 'GET') {
         setCorsHeaders(req, res);
         return await handleAgentStatus(req, res, createFreshPrismaClient());
     }
