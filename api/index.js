@@ -226,6 +226,14 @@ Make it compelling and conversion-focused.
 // Handle dashboard endpoints
 async function handleDashboard(req, res) {
     try {
+        console.log('🔍 Dashboard Debug - prisma defined:', typeof prisma !== 'undefined');
+        console.log('🔍 Dashboard Debug - prisma type:', typeof prisma);
+        console.log('🔍 Dashboard Debug - prisma object:', !!prisma);
+
+        // Test simple prisma call first
+        const testCount = await prisma.order.count();
+        console.log('🔍 Dashboard Debug - test count result:', testCount);
+
         const { start, end } = getDateRange(7);
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
