@@ -100,44 +100,38 @@ async function handleDashboard(req, res, pathSegments) {
         try {
             console.log('🔍 Dashboard: Starting data fetch...');
 
-            // Create Prisma client inside function to avoid scope issues
+            // Create Prisma client inside function - same pattern as working test endpoint
             const localPrisma = new PrismaClient();
             console.log('🔍 Dashboard: Prisma client created:', typeof localPrisma);
 
-            // Get basic metrics
-            const [
-                totalOrders,
-                totalProducts,
-                totalCustomers,
-                totalRevenue,
-                recentOrders,
-                whatsappOrders,
-                whatsappConversations
-            ] = await Promise.all([
-                localPrisma.order.count(),
-                localPrisma.product.count(),
-                localPrisma.customer.count(),
-                localPrisma.order.aggregate({
-                    _sum: { total: true },
-                    where: { status: 'CONFIRMED' }
-                }),
-                localPrisma.order.findMany({
-                    orderBy: { createdAt: 'desc' },
-                    take: 5,
-                    include: {
-                        customer: true
+            // Test simple call first
+            const testCount = await localPrisma.order.count();
+            console.log('🔍 Dashboard: Test count result:', testCount);
+
+            // Get basic metrics - simplified
+            const totalOrders = await localPrisma.order.count();
+            const totalProducts = await localPrisma.product.count();
+            const totalCustomers = await localPrisma.customer.count();
+            const totalRevenue = await localPrisma.order.aggregate({
+                _sum: { total: true },
+                where: { status: 'CONFIRMED' }
+            });
+            const recentOrders = await localPrisma.order.findMany({
+                orderBy: { createdAt: 'desc' },
+                take: 5,
+                include: {
+                    customer: true
+                }
+            });
+            const whatsappOrders = await localPrisma.order.count({
+                where: {
+                    metadata: {
+                        path: ['source'],
+                        equals: 'whatsapp_simulator'
                     }
-                }),
-                localPrisma.order.count({
-                    where: {
-                        metadata: {
-                            path: ['source'],
-                            equals: 'whatsapp_simulator'
-                        }
-                    }
-                }),
-                localPrisma.chatLog.count()
-            ]);
+                }
+            });
+            const whatsappConversations = await localPrisma.chatLog.count();
 
             console.log('✅ Dashboard: Data fetched successfully');
 
