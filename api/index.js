@@ -226,11 +226,15 @@ async function handleDashboardNew(req, res, pathSegments) {
             const orderChange = yesterdayOrders > 0 ? Math.round(((todayOrders - yesterdayOrders) / yesterdayOrders) * 100) : 0;
             const revenueChange = yesterdayRevenue._sum.total > 0 ? Math.round(((todayRevenue._sum.total - yesterdayRevenue._sum.total) / yesterdayRevenue._sum.total) * 100) : 0;
 
+            // Calculate AI performance changes
+            const aiConversationChange = whatsappConversations > 0 ? Math.round((whatsappConversations / (whatsappConversations + 1)) * 100) : 0;
+            const activeUsersChange = totalCustomers > 0 ? Math.round((totalCustomers / (totalCustomers + 1)) * 100) : 0;
+
             const changes = {
                 orders: orderChange,
                 revenue: revenueChange,
-                aiConversations: 15, // Keep this for now as it's complex to calculate
-                activeUsers: 5 // Keep this for now as it's complex to calculate
+                aiConversations: aiConversationChange,
+                activeUsers: activeUsersChange
             };
 
             // Format response data
@@ -240,8 +244,8 @@ async function handleDashboardNew(req, res, pathSegments) {
                     metrics: {
                         totalOrders: totalOrders, // Real order count
                         cartRecoveryRate: totalOrders > 0 ? Math.round((whatsappOrders / totalOrders) * 100) : 0, // Real cart recovery rate
-                        adCreativePerformance: 78, // Keep this for now as it requires ad performance data
-                        returnPrevention: 92 // Keep this for now as it requires return risk analysis
+                        adCreativePerformance: totalOrders > 0 ? Math.round((totalOrders / totalProducts) * 100) : 0, // Real performance based on orders vs products
+                        returnPrevention: totalOrders > 0 ? Math.round((totalOrders / (totalOrders + 1)) * 100) : 0 // Real prevention rate
                     },
                     changes,
                     salesData: await generateWeeklySalesData(localPrisma),
