@@ -1,4 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
+
+// Load environment variables FIRST
+dotenv.config();
 
 let prisma;
 
@@ -9,6 +13,45 @@ if (process.env.NODE_ENV === 'production') {
         global.prisma = new PrismaClient();
     }
     prisma = global.prisma;
+}
+
+// Generate real weekly sales data from database
+async function generateWeeklySalesData(prisma) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const salesData = [];
+
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+
+        const nextDate = new Date(date);
+        nextDate.setDate(nextDate.getDate() + 1);
+
+        // Get orders for this day
+        const dayOrders = await prisma.order.findMany({
+            where: {
+                createdAt: {
+                    gte: date,
+                    lt: nextDate
+                }
+            },
+            select: { total: true, status: true }
+        });
+
+        const totalSales = dayOrders.reduce((sum, order) => sum + Number(order.total), 0);
+        const recoveredSales = dayOrders
+            .filter(order => order.status === 'CONFIRMED')
+            .reduce((sum, order) => sum + Number(order.total), 0);
+
+        salesData.push({
+            name: days[6 - i],
+            sales: Math.round(totalSales),
+            recovered: Math.round(recoveredSales)
+        });
+    }
+
+    return salesData;
 }
 
 export default async function handler(req, res) {
@@ -99,7 +142,7 @@ async function handleDashboardNew(req, res, pathSegments) {
     if (req.method === 'GET') {
         try {
             console.log('🔍 Dashboard: Starting data fetch...');
-            
+
             // EXACT same pattern as working test-prisma endpoint
             const localPrisma = new PrismaClient();
             const testCount = await localPrisma.order.count();
@@ -132,12 +175,62 @@ async function handleDashboardNew(req, res, pathSegments) {
 
             console.log('✅ Dashboard: Data fetched successfully');
 
-            // Calculate changes (simplified for now)
+            // Calculate real changes from database
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            yesterday.setHours(0, 0, 0, 0);
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Get yesterday's data for comparison
+            const yesterdayOrders = await localPrisma.order.count({
+                where: {
+                    createdAt: {
+                        gte: yesterday,
+                        lt: today
+                    }
+                }
+            });
+
+            const yesterdayRevenue = await localPrisma.order.aggregate({
+                _sum: { total: true },
+                where: {
+                    createdAt: {
+                        gte: yesterday,
+                        lt: today
+                    },
+                    status: 'CONFIRMED'
+                }
+            });
+
+            const todayOrders = await localPrisma.order.count({
+                where: {
+                    createdAt: {
+                        gte: today
+                    }
+                }
+            });
+
+            const todayRevenue = await localPrisma.order.aggregate({
+                _sum: { total: true },
+                where: {
+                    createdAt: {
+                        gte: today
+                    },
+                    status: 'CONFIRMED'
+                }
+            });
+
+            // Calculate percentage changes
+            const orderChange = yesterdayOrders > 0 ? Math.round(((todayOrders - yesterdayOrders) / yesterdayOrders) * 100) : 0;
+            const revenueChange = yesterdayRevenue._sum.total > 0 ? Math.round(((todayRevenue._sum.total - yesterdayRevenue._sum.total) / yesterdayRevenue._sum.total) * 100) : 0;
+
             const changes = {
-                orders: 12,
-                revenue: 8,
-                aiConversations: 15,
-                activeUsers: 5
+                orders: orderChange,
+                revenue: revenueChange,
+                aiConversations: 15, // Keep this for now as it's complex to calculate
+                activeUsers: 5 // Keep this for now as it's complex to calculate
             };
 
             // Format response data
@@ -145,21 +238,13 @@ async function handleDashboardNew(req, res, pathSegments) {
                 success: true,
                 data: {
                     metrics: {
-                        totalOrders: totalRevenue._sum.total || 0,
-                        cartRecoveryRate: 85,
-                        adCreativePerformance: 78,
-                        returnPrevention: 92
+                        totalOrders: totalOrders, // Real order count
+                        cartRecoveryRate: totalOrders > 0 ? Math.round((whatsappOrders / totalOrders) * 100) : 0, // Real cart recovery rate
+                        adCreativePerformance: 78, // Keep this for now as it requires ad performance data
+                        returnPrevention: 92 // Keep this for now as it requires return risk analysis
                     },
                     changes,
-                    salesData: [
-                        { name: 'Mon', sales: 1200, recovered: 800 },
-                        { name: 'Tue', sales: 1900, recovered: 1200 },
-                        { name: 'Wed', sales: 3000, recovered: 1800 },
-                        { name: 'Thu', sales: 2800, recovered: 1600 },
-                        { name: 'Fri', sales: 1890, recovered: 1100 },
-                        { name: 'Sat', sales: 2390, recovered: 1400 },
-                        { name: 'Sun', sales: 3490, recovered: 2000 }
-                    ],
+                    salesData: await generateWeeklySalesData(localPrisma),
                     agentPerformance: [
                         { name: 'Product Launch', performance: 85 },
                         { name: 'Ad Creative', performance: 78 },
