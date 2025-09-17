@@ -141,6 +141,20 @@ export default async function handler(req, res) {
             return handleGenerateAdCreative(req, res);
         }
 
+        // Handle launches endpoint
+        if (req.url.match(/^\/api\/launches$/) && req.method === 'GET') {
+            return handleGetLaunches(req, res);
+        }
+
+        if (req.url.match(/^\/api\/launches$/) && req.method === 'POST') {
+            return handleCreateLaunch(req, res);
+        }
+
+        // Handle templates endpoint
+        if (req.url.match(/^\/api\/templates$/) && req.method === 'GET') {
+            return handleGetTemplates(req, res);
+        }
+
         return res.status(404).json({
             success: false,
             error: 'Endpoint not found'
@@ -917,6 +931,182 @@ Make it engaging and conversion-focused.
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to generate ad creative' }
+        });
+    }
+}
+
+// Handle creating a new launch
+async function handleCreateLaunch(req, res) {
+    try {
+        const { productId, targetAudience, budget, platforms, brandTone, additionalNotes, launchWindow } = await req.json();
+        const localPrisma = new PrismaClient();
+        
+        // Validate required fields
+        if (!productId || !targetAudience || !brandTone) {
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Missing required fields: productId, targetAudience, brandTone' }
+            });
+        }
+
+        // Check if product exists
+        const product = await localPrisma.product.findFirst({
+            where: { id: productId }
+        });
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'Product not found' }
+            });
+        }
+
+        // Create launch record
+        const launch = await localPrisma.launch.create({
+            data: {
+                workspaceId: 'default-workspace', // You might want to get this from user context
+                productId: productId,
+                name: `AI Launch for ${product.title}`,
+                status: 'DRAFT',
+                inputs: {
+                    targetAudience: targetAudience,
+                    budget: budget || 0,
+                    platforms: platforms || ['meta'],
+                    brandTone: brandTone,
+                    additionalNotes: additionalNotes || '',
+                    launchWindow: launchWindow || '2024-01-15 to 2024-01-30'
+                }
+            },
+            include: {
+                product: true
+            }
+        });
+        
+        return res.status(201).json({
+            success: true,
+            data: {
+                launch: launch,
+                message: 'Launch created successfully'
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creating launch:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to create launch' }
+        });
+    }
+}
+
+// Handle getting all launches
+async function handleGetLaunches(req, res) {
+    try {
+        const localPrisma = new PrismaClient();
+        
+        const launches = await localPrisma.launch.findMany({
+            include: {
+                product: true,
+                adCreatives: true
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+        
+        return res.status(200).json({
+            success: true,
+            data: {
+                launches: launches
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching launches:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to fetch launches' }
+        });
+    }
+}
+
+// Handle getting templates
+async function handleGetTemplates(req, res) {
+    try {
+        const localPrisma = new PrismaClient();
+        
+        // Get creative templates from database
+        const templates = await localPrisma.creativeTemplate.findMany({
+            where: {
+                isPublic: true
+            },
+            take: 20,
+            orderBy: {
+                usageCount: 'desc'
+            }
+        });
+        
+        // If no templates in database, return mock templates
+        if (templates.length === 0) {
+            const mockTemplates = [
+                {
+                    id: 'template_1',
+                    name: 'Modern Minimalist',
+                    description: 'Clean and modern design for tech products',
+                    category: 'instagram',
+                    thumbnail: 'https://via.placeholder.com/300x300/4ECDC4/FFFFFF?text=Modern+Minimalist',
+                    settings: {
+                        background: 'gradient',
+                        layout: 'product-focus',
+                        showPrice: true
+                    }
+                },
+                {
+                    id: 'template_2',
+                    name: 'Bold & Vibrant',
+                    description: 'Eye-catching design for lifestyle products',
+                    category: 'facebook',
+                    thumbnail: 'https://via.placeholder.com/300x300/FF6B6B/FFFFFF?text=Bold+Vibrant',
+                    settings: {
+                        background: 'solid',
+                        layout: 'lifestyle',
+                        showPrice: true
+                    }
+                },
+                {
+                    id: 'template_3',
+                    name: 'Elegant Luxury',
+                    description: 'Sophisticated design for premium products',
+                    category: 'pinterest',
+                    thumbnail: 'https://via.placeholder.com/300x300/45B7D1/FFFFFF?text=Elegant+Luxury',
+                    settings: {
+                        background: 'gradient',
+                        layout: 'luxury',
+                        showPrice: true
+                    }
+                }
+            ];
+            
+            return res.status(200).json({
+                success: true,
+                data: {
+                    templates: mockTemplates
+                }
+            });
+        }
+        
+        return res.status(200).json({
+            success: true,
+            data: {
+                templates: templates
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching templates:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to fetch templates' }
         });
     }
 }
