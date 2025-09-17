@@ -545,7 +545,7 @@ Tone: ${launch.inputs.brandTone}
 Platform: Instagram
 
 Make it compelling and conversion-focused.
-        `, {
+                `, {
             model: 'mistralai/Mistral-7B-Instruct-v0.1',
             maxTokens: 500,
             temperature: 0.7,
