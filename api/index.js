@@ -940,7 +940,7 @@ async function handleCreateLaunch(req, res) {
     try {
         const { productId, targetAudience, budget, platforms, brandTone, additionalNotes, launchWindow } = await req.json();
         const localPrisma = new PrismaClient();
-        
+
         // Validate required fields
         if (!productId || !targetAudience || !brandTone) {
             return res.status(400).json({
@@ -981,7 +981,7 @@ async function handleCreateLaunch(req, res) {
                 product: true
             }
         });
-        
+
         return res.status(201).json({
             success: true,
             data: {
@@ -1003,7 +1003,7 @@ async function handleCreateLaunch(req, res) {
 async function handleGetLaunches(req, res) {
     try {
         const localPrisma = new PrismaClient();
-        
+
         const launches = await localPrisma.launch.findMany({
             include: {
                 product: true,
@@ -1013,7 +1013,7 @@ async function handleGetLaunches(req, res) {
                 createdAt: 'desc'
             }
         });
-        
+
         return res.status(200).json({
             success: true,
             data: {
@@ -1034,7 +1034,7 @@ async function handleGetLaunches(req, res) {
 async function handleGetTemplates(req, res) {
     try {
         const localPrisma = new PrismaClient();
-        
+
         // Get creative templates from database
         const templates = await localPrisma.creativeTemplate.findMany({
             where: {
@@ -1045,11 +1045,10 @@ async function handleGetTemplates(req, res) {
                 usageCount: 'desc'
             }
         });
-        
+
         // If no templates in database, return mock templates
         if (templates.length === 0) {
-            const mockTemplates = [
-                {
+            const mockTemplates = [{
                     id: 'template_1',
                     name: 'Modern Minimalist',
                     description: 'Clean and modern design for tech products',
@@ -1086,7 +1085,7 @@ async function handleGetTemplates(req, res) {
                     }
                 }
             ];
-            
+
             return res.status(200).json({
                 success: true,
                 data: {
@@ -1094,7 +1093,7 @@ async function handleGetTemplates(req, res) {
                 }
             });
         }
-        
+
         return res.status(200).json({
             success: true,
             data: {
