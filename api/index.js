@@ -1128,7 +1128,7 @@ async function handleGetTemplates(req, res) {
 async function handleGetLaunches(req, res) {
     try {
         const localPrisma = new PrismaClient();
-        
+
         const launches = await localPrisma.launch.findMany({
             include: {
                 product: true,
@@ -1138,7 +1138,7 @@ async function handleGetLaunches(req, res) {
                 createdAt: 'desc'
             }
         });
-        
+
         return res.status(200).json({
             success: true,
             data: {
@@ -1160,7 +1160,7 @@ async function handleCreateLaunch(req, res) {
     try {
         const localPrisma = new PrismaClient();
         const { productId, brandTone, targetAudience, launchWindow, budget, platforms, additionalNotes } = req.body;
-        
+
         const launch = await localPrisma.launch.create({
             data: {
                 workspaceId: 'test-workspace-id',
@@ -1178,7 +1178,7 @@ async function handleCreateLaunch(req, res) {
                 }
             }
         });
-        
+
         return res.status(201).json({
             success: true,
             data: {
