@@ -265,8 +265,6 @@ export default async function handler(req, res) {
             return handleCheckout(req, res, pathSegments);
         } else if (pathSegments[0] === 'checkout-simulator') {
             return handleCheckoutSimulator(req, res, pathSegments);
-        } else if (pathSegments[0] === 'templates') {
-            return handleTemplates(req, res);
         }
 
 
@@ -2264,98 +2262,6 @@ async function handleCart(req, res, pathSegments) {
     });
 }
 
-// Handle templates endpoint
-async function handleTemplates(req, res) {
-    if (req.method === 'GET') {
-        try {
-            console.log('Fetching templates...');
-
-            // Get creative templates from database
-            const templates = await prisma.creativeTemplate.findMany({
-                where: {
-                    isPublic: true
-                },
-                take: 20,
-                orderBy: {
-                    usageCount: 'desc'
-                }
-            });
-            
-            // If no templates in database, return mock templates
-            if (templates.length === 0) {
-                const mockTemplates = [
-                    {
-                        id: 'template_1',
-                        name: 'Modern Minimalist',
-                        description: 'Clean and modern design for tech products',
-                        category: 'instagram',
-                        thumbnail: 'https://via.placeholder.com/300x300/4ECDC4/FFFFFF?text=Modern+Minimalist',
-                        settings: {
-                            background: 'gradient',
-                            layout: 'product-focus',
-                            showPrice: true
-                        }
-                    },
-                    {
-                        id: 'template_2',
-                        name: 'Bold & Vibrant',
-                        description: 'Eye-catching design for lifestyle products',
-                        category: 'facebook',
-                        thumbnail: 'https://via.placeholder.com/300x300/FF6B6B/FFFFFF?text=Bold+Vibrant',
-                        settings: {
-                            background: 'solid',
-                            layout: 'lifestyle',
-                            showPrice: true
-                        }
-                    },
-                    {
-                        id: 'template_3',
-                        name: 'Elegant Luxury',
-                        description: 'Sophisticated design for premium products',
-                        category: 'pinterest',
-                        thumbnail: 'https://via.placeholder.com/300x300/45B7D1/FFFFFF?text=Elegant+Luxury',
-                        settings: {
-                            background: 'gradient',
-                            layout: 'luxury',
-                            showPrice: true
-                        }
-                    }
-                ];
-                
-                return res.status(200).json({
-                    success: true,
-                    data: {
-                        templates: mockTemplates
-                    },
-                    timestamp: new Date().toISOString()
-                });
-            }
-            
-            return res.status(200).json({
-                success: true,
-                data: {
-                    templates: templates
-                },
-                timestamp: new Date().toISOString()
-            });
-
-        } catch (error) {
-            console.error('Error fetching templates:', error);
-            return res.status(500).json({
-                success: false,
-                error: {
-                    message: 'Failed to fetch templates',
-                    details: error.message
-                }
-            });
-        }
-    }
-
-    return res.status(405).json({
-        success: false,
-        error: 'Method not allowed'
-    });
-}
 
 // Helper functions for chat processing
 async function handleProductSearch(message, workspaceId) {
@@ -2531,99 +2437,6 @@ async function handleCheckout(req, res, pathSegments) {
                 items: items.length
             }
         });
-    }
-
-    return res.status(405).json({
-        success: false,
-        error: 'Method not allowed'
-    });
-}
-
-// Handle templates endpoint
-async function handleTemplates(req, res) {
-    if (req.method === 'GET') {
-        try {
-            console.log('Fetching templates...');
-
-            // Get creative templates from database
-            const templates = await prisma.creativeTemplate.findMany({
-                where: {
-                    isPublic: true
-                },
-                take: 20,
-                orderBy: {
-                    usageCount: 'desc'
-                }
-            });
-            
-            // If no templates in database, return mock templates
-            if (templates.length === 0) {
-                const mockTemplates = [
-                    {
-                        id: 'template_1',
-                        name: 'Modern Minimalist',
-                        description: 'Clean and modern design for tech products',
-                        category: 'instagram',
-                        thumbnail: 'https://via.placeholder.com/300x300/4ECDC4/FFFFFF?text=Modern+Minimalist',
-                        settings: {
-                            background: 'gradient',
-                            layout: 'product-focus',
-                            showPrice: true
-                        }
-                    },
-                    {
-                        id: 'template_2',
-                        name: 'Bold & Vibrant',
-                        description: 'Eye-catching design for lifestyle products',
-                        category: 'facebook',
-                        thumbnail: 'https://via.placeholder.com/300x300/FF6B6B/FFFFFF?text=Bold+Vibrant',
-                        settings: {
-                            background: 'solid',
-                            layout: 'lifestyle',
-                            showPrice: true
-                        }
-                    },
-                    {
-                        id: 'template_3',
-                        name: 'Elegant Luxury',
-                        description: 'Sophisticated design for premium products',
-                        category: 'pinterest',
-                        thumbnail: 'https://via.placeholder.com/300x300/45B7D1/FFFFFF?text=Elegant+Luxury',
-                        settings: {
-                            background: 'gradient',
-                            layout: 'luxury',
-                            showPrice: true
-                        }
-                    }
-                ];
-                
-                return res.status(200).json({
-                    success: true,
-                    data: {
-                        templates: mockTemplates
-                    },
-                    timestamp: new Date().toISOString()
-                });
-            }
-            
-            return res.status(200).json({
-                success: true,
-                data: {
-                    templates: templates
-                },
-                timestamp: new Date().toISOString()
-            });
-
-        } catch (error) {
-            console.error('Error fetching templates:', error);
-            return res.status(500).json({
-                success: false,
-                error: {
-                    message: 'Failed to fetch templates',
-                    details: error.message
-                }
-            });
-        }
     }
 
     return res.status(405).json({

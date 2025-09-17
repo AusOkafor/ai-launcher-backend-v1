@@ -155,6 +155,19 @@ export default async function handler(req, res) {
             return handleGetTemplates(req, res);
         }
 
+        // Handle ad-creatives endpoints
+        if (req.url.match(/^\/api\/ad-creatives\/launch\/[^\/]+\/generate$/) && req.method === 'POST') {
+            return handleGenerateAdCreatives(req, res);
+        }
+
+        if (req.url.match(/^\/api\/ad-creatives\/launch\/[^\/]+\/optimize$/) && req.method === 'POST') {
+            return handleOptimizeAdCreatives(req, res);
+        }
+
+        if (req.url.match(/^\/api\/ad-creatives\/generate$/) && req.method === 'POST') {
+            return handleGenerateAdCreative(req, res);
+        }
+
         return res.status(404).json({
             success: false,
             error: 'Endpoint not found'
