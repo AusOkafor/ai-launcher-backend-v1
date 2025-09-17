@@ -141,6 +141,7 @@ export default async function handler(req, res) {
             return handleGenerateAdCreative(req, res);
         }
 
+
         // Handle launches endpoint
         if (req.url.match(/^\/api\/launches$/) && req.method === 'GET') {
             return handleGetLaunches(req, res);
@@ -1119,6 +1120,77 @@ async function handleGetTemplates(req, res) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to fetch templates' }
+        });
+    }
+}
+
+// Handle getting launches
+async function handleGetLaunches(req, res) {
+    try {
+        const localPrisma = new PrismaClient();
+        
+        const launches = await localPrisma.launch.findMany({
+            include: {
+                product: true,
+                adCreatives: true
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+        
+        return res.status(200).json({
+            success: true,
+            data: {
+                launches: launches
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching launches:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to fetch launches' }
+        });
+    }
+}
+
+// Handle creating launches
+async function handleCreateLaunch(req, res) {
+    try {
+        const localPrisma = new PrismaClient();
+        const { productId, brandTone, targetAudience, launchWindow, budget, platforms, additionalNotes } = req.body;
+        
+        const launch = await localPrisma.launch.create({
+            data: {
+                workspaceId: 'test-workspace-id',
+                productId,
+                name: `Launch for ${productId}`,
+                status: 'DRAFT',
+                inputs: {
+                    productId,
+                    brandTone,
+                    targetAudience,
+                    launchWindow,
+                    budget,
+                    platforms,
+                    additionalNotes
+                }
+            }
+        });
+        
+        return res.status(201).json({
+            success: true,
+            data: {
+                launch: launch
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creating launch:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to create launch' }
         });
     }
 }
