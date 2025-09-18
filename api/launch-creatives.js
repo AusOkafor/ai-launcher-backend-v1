@@ -44,41 +44,41 @@ export default async function handler(req, res) {
 
     try {
         // Handle launches endpoints
-        if (req.url.match(/^\/api\/launches$/) && req.method === 'GET') {
+        if (req.url.match(/^\/api\/launch-creatives\/launches$/) && req.method === 'GET') {
             return handleGetLaunches(req, res);
         }
 
-        if (req.url.match(/^\/api\/launches$/) && req.method === 'POST') {
+        if (req.url.match(/^\/api\/launch-creatives\/launches$/) && req.method === 'POST') {
             return handleCreateLaunch(req, res);
         }
 
-        if (req.url.match(/^\/api\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
+        if (req.url.match(/^\/api\/launch-creatives\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
             return handleGenerateLaunch(req, res);
         }
 
-        if (req.url.match(/^\/api\/launches\/[^\/]+$/) && req.method === 'DELETE') {
+        if (req.url.match(/^\/api\/launch-creatives\/launches\/[^\/]+$/) && req.method === 'DELETE') {
             return handleDeleteLaunch(req, res);
         }
 
         // Handle templates endpoint
-        if (req.url.match(/^\/api\/templates$/) && req.method === 'GET') {
+        if (req.url.match(/^\/api\/launch-creatives\/templates$/) && req.method === 'GET') {
             return handleGetTemplates(req, res);
         }
 
         // Handle ad creative generation endpoints
-        if (req.url.match(/^\/api\/ad-creatives\/launch\/[^\/]+\/generate$/) && req.method === 'POST') {
+        if (req.url.match(/^\/api\/launch-creatives\/ad-creatives\/launch\/[^\/]+\/generate$/) && req.method === 'POST') {
             return handleGenerateAdCreatives(req, res);
         }
 
-        if (req.url.match(/^\/api\/ad-creatives\/launch\/[^\/]+\/optimize$/) && req.method === 'POST') {
+        if (req.url.match(/^\/api\/launch-creatives\/ad-creatives\/launch\/[^\/]+\/optimize$/) && req.method === 'POST') {
             return handleOptimizeAdCreatives(req, res);
         }
 
-        if (req.url.match(/^\/api\/ad-creatives\/generate$/) && req.method === 'POST') {
+        if (req.url.match(/^\/api\/launch-creatives\/ad-creatives\/generate$/) && req.method === 'POST') {
             return handleGenerateAdCreative(req, res);
         }
 
-        if (req.url.match(/^\/api\/images\/creative\/[^\/]+\/create-ad-creative$/) && req.method === 'POST') {
+        if (req.url.match(/^\/api\/launch-creatives\/images\/creative\/[^\/]+\/create-ad-creative$/) && req.method === 'POST') {
             return handleCreateAdCreativeImage(req, res);
         }
 
