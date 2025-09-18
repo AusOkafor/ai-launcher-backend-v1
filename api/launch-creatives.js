@@ -44,7 +44,18 @@ export default async function handler(req, res) {
 
     try {
         console.log('Launch-creatives API called with URL:', req.url, 'Method:', req.method);
-        
+
+        // Test endpoint
+        if (req.url === '/launches' && req.method === 'GET') {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    launches: [],
+                    message: 'API is working'
+                }
+            });
+        }
+
         // Handle launches endpoints
         if (req.url.match(/^\/launches$/) && req.method === 'GET') {
             return handleGetLaunches(req, res);
