@@ -82,43 +82,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { path } = req.query;
-        const pathSegments = path ? path.split('/') : [];
-
-        // Route based on path segments
-        if (pathSegments[0] === 'dashboard') {
-            return handleDashboardNew(req, res, pathSegments);
-        }
-
-        if (pathSegments[0] === 'agent-status') {
-            return handleAgentStatus(req, res, pathSegments);
-        }
-
-        if (pathSegments[0] === 'test-prisma') {
-            try {
-                const testPrisma = new PrismaClient();
-                const testCount = await testPrisma.order.count();
-                return res.status(200).json({
-                    success: true,
-                    data: {
-                        prismaDefined: typeof prisma !== 'undefined',
-                        prismaType: typeof prisma,
-                        nodeEnv: process.env.NODE_ENV,
-                        hasGlobalPrisma: typeof global.prisma !== 'undefined',
-                        prismaObject: !!prisma,
-                        testPrismaCreated: typeof testPrisma !== 'undefined',
-                        testCount: testCount
-                    }
-                });
-            } catch (error) {
-                return res.status(500).json({
-                    success: false,
-                    error: 'Failed to create test Prisma client',
-                    details: error.message
-                });
-            }
-        }
-
+        // Handle direct URL routing first
         // Handle generate endpoint specifically
         if (req.url.match(/^\/api\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
             return handleGenerateLaunch(req, res);
@@ -154,6 +118,44 @@ export default async function handler(req, res) {
         // Handle templates endpoint
         if (req.url.match(/^\/api\/templates$/) && req.method === 'GET') {
             return handleGetTemplates(req, res);
+        }
+
+        // Handle query parameter routing (for dashboard, agent-status, etc.)
+        const { path } = req.query;
+        const pathSegments = path ? path.split('/') : [];
+
+        // Route based on path segments
+        if (pathSegments[0] === 'dashboard') {
+            return handleDashboardNew(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'agent-status') {
+            return handleAgentStatus(req, res, pathSegments);
+        }
+
+        if (pathSegments[0] === 'test-prisma') {
+            try {
+                const testPrisma = new PrismaClient();
+                const testCount = await testPrisma.order.count();
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        prismaDefined: typeof prisma !== 'undefined',
+                        prismaType: typeof prisma,
+                        nodeEnv: process.env.NODE_ENV,
+                        hasGlobalPrisma: typeof global.prisma !== 'undefined',
+                        prismaObject: !!prisma,
+                        testPrismaCreated: typeof testPrisma !== 'undefined',
+                        testCount: testCount
+                    }
+                });
+            } catch (error) {
+                return res.status(500).json({
+                    success: false,
+                    error: 'Failed to create test Prisma client',
+                    details: error.message
+                });
+            }
         }
 
         // Handle ad-creatives endpoints
