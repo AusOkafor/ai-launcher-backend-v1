@@ -158,6 +158,19 @@ export default async function handler(req, res) {
             }
         }
 
+        if (pathSegments[0] === 'launch-generate') {
+            const launchId = req.query.launchId;
+            if (!launchId) {
+                return res.status(400).json({
+                    success: false,
+                    error: { message: 'Launch ID is required' }
+                });
+            }
+            // Modify the URL to match the expected format for handleGenerateLaunch
+            req.url = `/api/launches/${launchId}/generate`;
+            return handleGenerateLaunch(req, res);
+        }
+
         // Handle ad-creatives endpoints
         if (req.url.match(/^\/api\/ad-creatives\/launch\/[^\/]+\/generate$/) && req.method === 'POST') {
             return handleGenerateAdCreatives(req, res);
