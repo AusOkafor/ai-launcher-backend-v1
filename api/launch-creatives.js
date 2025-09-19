@@ -136,6 +136,13 @@ async function handleTemplates(req, res, pathSegments) {
         return handleGetTemplates(req, res);
     }
 
+    if (req.method === 'POST') {
+        // POST /api/launch-creatives?path=templates/test-template
+        if (pathSegments[1] === 'test-template') {
+            return handleSaveTemplate(req, res);
+        }
+    }
+
     return res.status(405).json({
         success: false,
         error: { message: 'Method not allowed' }
@@ -520,6 +527,58 @@ async function handleGetTemplates(req, res) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to fetch templates' }
+        });
+    }
+}
+
+// Handle saving templates
+async function handleSaveTemplate(req, res) {
+    try {
+        console.log('Saving template...');
+
+        const templateData = req.body;
+        console.log('Template data received:', templateData);
+
+        // Validate required fields
+        if (!templateData.name || !templateData.name.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Template name is required' }
+            });
+        }
+
+        const localPrisma = new PrismaClient();
+
+        // Save template to database
+        const savedTemplate = await localPrisma.creativeTemplate.create({
+            data: {
+                name: templateData.name.trim(),
+                description: templateData.description || '',
+                category: templateData.category || 'business',
+                subcategory: templateData.subcategory || 'general',
+                tags: templateData.tags || [],
+                platform: templateData.platform || 'instagram',
+                aspectRatio: templateData.aspectRatio || '1:1',
+                settings: templateData.settings || {},
+                isPublic: false, // User templates are private by default
+                isActive: true
+            }
+        });
+
+        await localPrisma.$disconnect();
+
+        console.log('Template saved successfully:', savedTemplate.id);
+
+        return res.status(201).json({
+            success: true,
+            data: { template: savedTemplate },
+            message: 'Template saved successfully'
+        });
+    } catch (error) {
+        console.error('Error saving template:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to save template' }
         });
     }
 }
