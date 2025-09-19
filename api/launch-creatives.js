@@ -675,12 +675,12 @@ async function handlePerformance(req, res, pathSegments) {
         if (pathSegments.length === 3 && pathSegments[1] === 'score') {
             return handlePerformanceScore(req, res, pathSegments[2]);
         }
-        
+
         // GET/POST /api/launch-creatives?path=performance/prediction/{id}
         if (pathSegments.length === 3 && pathSegments[1] === 'prediction') {
             return handlePerformancePrediction(req, res, pathSegments[2]);
         }
-        
+
         // GET/POST /api/launch-creatives?path=performance/insights/{id}
         if (pathSegments.length === 3 && pathSegments[1] === 'insights') {
             return handlePerformanceInsights(req, res, pathSegments[2]);
@@ -697,13 +697,27 @@ async function handlePerformance(req, res, pathSegments) {
 async function handlePerformanceScore(req, res, creativeId) {
     try {
         // Mock response for now
+        const overallScore = Math.floor(Math.random() * 40) + 60; // Random score between 60-100
+        const engagement = Math.floor(Math.random() * 30) + 70;
+        const conversion = Math.floor(Math.random() * 25) + 75;
+        const brandAlignment = Math.floor(Math.random() * 20) + 80;
+        const creativity = Math.floor(Math.random() * 25) + 75;
+        const clarity = Math.floor(Math.random() * 15) + 85;
+
         return res.status(200).json({
             success: true,
             data: {
-                score: Math.floor(Math.random() * 40) + 60, // Random score between 60-100
+                score: {
+                    overall: overallScore,
+                    engagement: engagement,
+                    conversion: conversion,
+                    brandAlignment: brandAlignment,
+                    creativity: creativity,
+                    clarity: clarity
+                },
                 metrics: {
-                    engagement: Math.floor(Math.random() * 30) + 70,
-                    conversion: Math.floor(Math.random() * 25) + 75,
+                    engagement: engagement,
+                    conversion: conversion,
                     reach: Math.floor(Math.random() * 35) + 65
                 },
                 creativeId: creativeId
@@ -723,12 +737,20 @@ async function handlePerformanceScore(req, res, creativeId) {
 async function handlePerformancePrediction(req, res, creativeId) {
     try {
         // Mock response for now
+        const ctrValue = Math.random() * 2 + 1; // 1-3%
+        const cpmValue = Math.random() * 5 + 2; // $2-7
+        const conversionRate = Math.random() * 2 + 0.5; // 0.5-2.5%
+
         return res.status(200).json({
             success: true,
             data: {
                 prediction: {
-                    ctr: (Math.random() * 2 + 1).toFixed(2) + '%',
-                    cpm: '$' + (Math.random() * 5 + 2).toFixed(2),
+                    ctr: ctrValue,
+                    ctrFormatted: ctrValue.toFixed(2) + '%',
+                    cpm: cpmValue,
+                    cpmFormatted: '$' + cpmValue.toFixed(2),
+                    conversionRate: conversionRate,
+                    conversionRateFormatted: conversionRate.toFixed(2) + '%',
                     estimatedReach: Math.floor(Math.random() * 50000) + 10000
                 },
                 creativeId: creativeId
