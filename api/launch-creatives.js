@@ -557,11 +557,12 @@ async function handleSaveTemplate(req, res) {
                 category: templateData.category || 'business',
                 subcategory: templateData.subcategory || 'general',
                 tags: templateData.tags || [],
-                platform: templateData.platform || 'instagram',
-                aspectRatio: templateData.aspectRatio || '1:1',
                 settings: templateData.settings || {},
                 isPublic: false, // User templates are private by default
-                isActive: true
+                isPremium: false,
+                usageCount: 0,
+                createdBy: 'user', // TODO: Get actual user ID from auth
+                workspaceId: null // TODO: Get actual workspace ID from auth
             }
         });
 
