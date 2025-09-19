@@ -276,11 +276,15 @@ async function handleGenerateLaunch(req, res, launchId) {
         });
 
         // Import AI service
+        console.log('Importing AI service...');
         const { aiService } = await
         import ('../src/services/ai.js');
+        console.log('AI service imported, initializing...');
         await aiService.initialize();
+        console.log('AI service initialized successfully');
 
         // Generate AI content
+        console.log('Generating AI content...');
         const aiResponse = await aiService.generateText(`
 Generate engaging social media content for this product:
 
