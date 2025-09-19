@@ -670,18 +670,18 @@ async function handleGenerateVariations(req, res, creativeId) {
 
 // Handle performance endpoints
 async function handlePerformance(req, res, pathSegments) {
-    if (req.method === 'GET') {
-        // GET /api/launch-creatives?path=performance/score/{id}
+    if (req.method === 'GET' || req.method === 'POST') {
+        // GET/POST /api/launch-creatives?path=performance/score/{id}
         if (pathSegments.length === 3 && pathSegments[1] === 'score') {
             return handlePerformanceScore(req, res, pathSegments[2]);
         }
         
-        // GET /api/launch-creatives?path=performance/prediction/{id}
+        // GET/POST /api/launch-creatives?path=performance/prediction/{id}
         if (pathSegments.length === 3 && pathSegments[1] === 'prediction') {
             return handlePerformancePrediction(req, res, pathSegments[2]);
         }
         
-        // GET /api/launch-creatives?path=performance/insights/{id}
+        // GET/POST /api/launch-creatives?path=performance/insights/{id}
         if (pathSegments.length === 3 && pathSegments[1] === 'insights') {
             return handlePerformanceInsights(req, res, pathSegments[2]);
         }
@@ -782,7 +782,7 @@ async function handleAnalytics(req, res, pathSegments) {
         if (pathSegments.length === 1) {
             return handleGetAnalytics(req, res);
         }
-        
+
         // GET /api/launch-creatives?path=analytics/launch/{id}
         if (pathSegments.length === 3 && pathSegments[1] === 'launch') {
             return handleGetLaunchAnalytics(req, res, pathSegments[2]);
