@@ -133,13 +133,27 @@ async function handleLaunches(req, res, pathSegments) {
 async function handleTemplates(req, res, pathSegments) {
     if (req.method === 'GET') {
         // GET /api/launch-creatives?path=templates
-        return handleGetTemplates(req, res);
+        if (pathSegments.length === 1) {
+            return handleGetTemplates(req, res);
+        }
+
+        // GET /api/launch-creatives?path=templates/user-templates
+        if (pathSegments[1] === 'user-templates') {
+            return handleGetUserTemplates(req, res);
+        }
     }
 
     if (req.method === 'POST') {
         // POST /api/launch-creatives?path=templates/test-template
         if (pathSegments[1] === 'test-template') {
             return handleSaveTemplate(req, res);
+        }
+    }
+
+    if (req.method === 'DELETE') {
+        // DELETE /api/launch-creatives?path=templates/template/{id}
+        if (pathSegments[1] === 'template' && pathSegments[2]) {
+            return handleDeleteTemplate(req, res, pathSegments[2]);
         }
     }
 
@@ -515,10 +529,18 @@ async function handleGetTemplates(req, res) {
             });
         }
 
+        // Transform templates to include frontend-expected fields
+        const transformedTemplates = templates.map(template => ({
+            ...template,
+            // Add aspectRatio and platform at template level for frontend compatibility
+            aspectRatio: template.settings ? .aspectRatio || '1:1',
+            platform: template.settings ? .platform || 'instagram'
+        }));
+
         return res.status(200).json({
             success: true,
             data: {
-                templates: templates
+                templates: transformedTemplates
             }
         });
 
@@ -549,6 +571,13 @@ async function handleSaveTemplate(req, res) {
 
         const localPrisma = new PrismaClient();
 
+        // Ensure settings include aspectRatio and platform for frontend compatibility
+        const settings = {
+            ...templateData.settings,
+            aspectRatio: templateData.aspectRatio || templateData.settings ? .aspectRatio || '1:1',
+            platform: templateData.platform || templateData.settings ? .platform || 'instagram'
+        };
+
         // Save template to database
         const savedTemplate = await localPrisma.creativeTemplate.create({
             data: {
@@ -557,7 +586,7 @@ async function handleSaveTemplate(req, res) {
                 category: templateData.category || 'business',
                 subcategory: templateData.subcategory || 'general',
                 tags: templateData.tags || [],
-                settings: templateData.settings || {},
+                settings: settings,
                 isPublic: false, // User templates are private by default
                 isPremium: false,
                 usageCount: 0,
@@ -580,6 +609,76 @@ async function handleSaveTemplate(req, res) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to save template' }
+        });
+    }
+}
+
+// Handle getting user templates
+async function handleGetUserTemplates(req, res) {
+    try {
+        console.log('Getting user templates...');
+
+        const localPrisma = new PrismaClient();
+
+        // Get user-created templates (private templates)
+        const userTemplates = await localPrisma.creativeTemplate.findMany({
+            where: {
+                isPublic: false,
+                createdBy: 'user' // TODO: Filter by actual user ID when auth is implemented
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        await localPrisma.$disconnect();
+
+        // Transform templates to include frontend-expected fields
+        const transformedTemplates = userTemplates.map(template => ({
+            ...template,
+            // Add aspectRatio and platform at template level for frontend compatibility
+            aspectRatio: template.settings ? .aspectRatio || '1:1',
+            platform: template.settings ? .platform || 'instagram'
+        }));
+
+        console.log('Found user templates:', transformedTemplates.length);
+
+        return res.status(200).json({
+            success: true,
+            data: { userTemplates: transformedTemplates }
+        });
+    } catch (error) {
+        console.error('Error fetching user templates:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to fetch user templates' }
+        });
+    }
+}
+
+// Handle deleting templates
+async function handleDeleteTemplate(req, res, templateId) {
+    try {
+        console.log('Deleting template:', templateId);
+
+        const localPrisma = new PrismaClient();
+
+        // Delete the template
+        await localPrisma.creativeTemplate.delete({
+            where: { id: templateId }
+        });
+
+        await localPrisma.$disconnect();
+
+        console.log('Template deleted successfully:', templateId);
+
+        return res.status(200).json({
+            success: true,
+            message: 'Template deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting template:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to delete template' }
         });
     }
 }
