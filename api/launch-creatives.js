@@ -64,6 +64,12 @@ export default async function handler(req, res) {
         if (pathSegments[0] === 'images') {
             return handleImages(req, res, pathSegments);
         }
+        if (pathSegments[0] === 'performance') {
+            return handlePerformance(req, res, pathSegments);
+        }
+        if (pathSegments[0] === 'analytics') {
+            return handleAnalytics(req, res, pathSegments);
+        }
 
         // Default test endpoint
         return res.status(200).json({
@@ -633,7 +639,7 @@ async function handleGenerateVariations(req, res, creativeId) {
             success: true,
             data: {
                 message: 'Image variations generated successfully',
-                variations: [{
+                images: [{
                         id: 'var_1',
                         imageUrl: 'https://via.placeholder.com/1200x630/FF6B6B/FFFFFF?text=Variation+1',
                         style: 'vibrant'
@@ -658,6 +664,213 @@ async function handleGenerateVariations(req, res, creativeId) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to generate variations' }
+        });
+    }
+}
+
+// Handle performance endpoints
+async function handlePerformance(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        // GET /api/launch-creatives?path=performance/score/{id}
+        if (pathSegments.length === 3 && pathSegments[1] === 'score') {
+            return handlePerformanceScore(req, res, pathSegments[2]);
+        }
+        
+        // GET /api/launch-creatives?path=performance/prediction/{id}
+        if (pathSegments.length === 3 && pathSegments[1] === 'prediction') {
+            return handlePerformancePrediction(req, res, pathSegments[2]);
+        }
+        
+        // GET /api/launch-creatives?path=performance/insights/{id}
+        if (pathSegments.length === 3 && pathSegments[1] === 'insights') {
+            return handlePerformanceInsights(req, res, pathSegments[2]);
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle performance score
+async function handlePerformanceScore(req, res, creativeId) {
+    try {
+        // Mock response for now
+        return res.status(200).json({
+            success: true,
+            data: {
+                score: Math.floor(Math.random() * 40) + 60, // Random score between 60-100
+                metrics: {
+                    engagement: Math.floor(Math.random() * 30) + 70,
+                    conversion: Math.floor(Math.random() * 25) + 75,
+                    reach: Math.floor(Math.random() * 35) + 65
+                },
+                creativeId: creativeId
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting performance score:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to get performance score' }
+        });
+    }
+}
+
+// Handle performance prediction
+async function handlePerformancePrediction(req, res, creativeId) {
+    try {
+        // Mock response for now
+        return res.status(200).json({
+            success: true,
+            data: {
+                prediction: {
+                    ctr: (Math.random() * 2 + 1).toFixed(2) + '%',
+                    cpm: '$' + (Math.random() * 5 + 2).toFixed(2),
+                    estimatedReach: Math.floor(Math.random() * 50000) + 10000
+                },
+                creativeId: creativeId
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting performance prediction:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to get performance prediction' }
+        });
+    }
+}
+
+// Handle performance insights
+async function handlePerformanceInsights(req, res, creativeId) {
+    try {
+        // Mock response for now
+        return res.status(200).json({
+            success: true,
+            data: {
+                insights: [
+                    'High engagement potential with current color scheme',
+                    'Consider A/B testing different headlines',
+                    'Strong call-to-action placement',
+                    'Optimize for mobile viewing'
+                ],
+                recommendations: [
+                    'Try a more vibrant background color',
+                    'Test shorter, punchier copy',
+                    'Add social proof elements'
+                ],
+                creativeId: creativeId
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting performance insights:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to get performance insights' }
+        });
+    }
+}
+
+// Handle analytics endpoints
+async function handleAnalytics(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        // GET /api/launch-creatives?path=analytics
+        if (pathSegments.length === 1) {
+            return handleGetAnalytics(req, res);
+        }
+        
+        // GET /api/launch-creatives?path=analytics/launch/{id}
+        if (pathSegments.length === 3 && pathSegments[1] === 'launch') {
+            return handleGetLaunchAnalytics(req, res, pathSegments[2]);
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle get analytics
+async function handleGetAnalytics(req, res) {
+    try {
+        // Mock response for now
+        return res.status(200).json({
+            success: true,
+            data: {
+                totalLaunches: 12,
+                totalCreatives: 45,
+                totalImpressions: 125000,
+                totalClicks: 3500,
+                totalConversions: 180,
+                trends: {
+                    launches: [10, 12, 8, 15, 12, 18, 12],
+                    creatives: [25, 30, 22, 35, 30, 42, 45],
+                    impressions: [80000, 95000, 70000, 110000, 95000, 140000, 125000],
+                    clicks: [2000, 2400, 1800, 2800, 2400, 3200, 3500]
+                },
+                topPerforming: [
+                    { id: '1', name: 'Tech Product Launch', score: 95 },
+                    { id: '2', name: 'Fashion Campaign', score: 88 },
+                    { id: '3', name: 'Home Decor', score: 82 }
+                ]
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting analytics:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to get analytics' }
+        });
+    }
+}
+
+// Handle get launch analytics
+async function handleGetLaunchAnalytics(req, res, launchId) {
+    try {
+        // Mock response for now
+        return res.status(200).json({
+            success: true,
+            data: {
+                launchId: launchId,
+                metrics: {
+                    impressions: Math.floor(Math.random() * 50000) + 10000,
+                    clicks: Math.floor(Math.random() * 2000) + 500,
+                    conversions: Math.floor(Math.random() * 100) + 20,
+                    ctr: (Math.random() * 3 + 1).toFixed(2) + '%',
+                    conversionRate: (Math.random() * 5 + 2).toFixed(2) + '%'
+                },
+                trends: {
+                    daily: [
+                        { date: '2024-01-01', impressions: 1200, clicks: 45, conversions: 3 },
+                        { date: '2024-01-02', impressions: 1500, clicks: 52, conversions: 4 },
+                        { date: '2024-01-03', impressions: 1800, clicks: 68, conversions: 5 },
+                        { date: '2024-01-04', impressions: 2100, clicks: 75, conversions: 6 },
+                        { date: '2024-01-05', impressions: 1900, clicks: 71, conversions: 5 }
+                    ]
+                },
+                audience: {
+                    demographics: {
+                        age18_24: 25,
+                        age25_34: 35,
+                        age35_44: 25,
+                        age45_54: 15
+                    },
+                    interests: ['Technology', 'Fashion', 'Lifestyle', 'Shopping']
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error getting launch analytics:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to get launch analytics' }
         });
     }
 }
