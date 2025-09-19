@@ -168,6 +168,11 @@ async function handleImages(req, res, pathSegments) {
         if (pathSegments.length === 4 && pathSegments[1] === 'creative' && pathSegments[3] === 'create-ad-creative') {
             return handleCreateAdCreativeImage(req, res, pathSegments[2]);
         }
+
+        // POST /api/launch-creatives?path=images/creative/{id}/generate-variations
+        if (pathSegments.length === 4 && pathSegments[1] === 'creative' && pathSegments[3] === 'generate-variations') {
+            return handleGenerateVariations(req, res, pathSegments[2]);
+        }
     }
 
     return res.status(405).json({
@@ -614,6 +619,45 @@ async function handleCreateAdCreativeImage(req, res, creativeId) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to create ad creative image' }
+        });
+    }
+}
+
+// Handle generate variations
+async function handleGenerateVariations(req, res, creativeId) {
+    try {
+        const { variations } = req.body;
+
+        // Mock response for now
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: 'Image variations generated successfully',
+                variations: [{
+                        id: 'var_1',
+                        imageUrl: 'https://via.placeholder.com/1200x630/FF6B6B/FFFFFF?text=Variation+1',
+                        style: 'vibrant'
+                    },
+                    {
+                        id: 'var_2',
+                        imageUrl: 'https://via.placeholder.com/1200x630/4ECDC4/FFFFFF?text=Variation+2',
+                        style: 'minimal'
+                    },
+                    {
+                        id: 'var_3',
+                        imageUrl: 'https://via.placeholder.com/1200x630/45B7D1/FFFFFF?text=Variation+3',
+                        style: 'elegant'
+                    }
+                ],
+                creativeId: creativeId
+            }
+        });
+
+    } catch (error) {
+        console.error('Error generating variations:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to generate variations' }
         });
     }
 }
