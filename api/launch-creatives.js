@@ -835,7 +835,7 @@ async function handleGetAnalytics(req, res) {
 
         // Calculate real analytics
         const totalLaunches = launches.length;
-        const totalCreatives = launches.reduce((sum, launch) => sum + (launch.adCreatives ? .length || 0), 0);
+        const totalCreatives = launches.reduce((sum, launch) => sum + ((launch.adCreatives && launch.adCreatives.length) || 0), 0);
 
         // Calculate total impressions and clicks from creatives
         let totalImpressions = 0;
@@ -871,17 +871,17 @@ async function handleGetAnalytics(req, res) {
             );
 
             const dayCreatives = dayLaunches.reduce((sum, launch) =>
-                sum + (launch.adCreatives ? .length || 0), 0
+                sum + ((launch.adCreatives && launch.adCreatives.length) || 0), 0
             );
 
             const dayImpressions = dayLaunches.reduce((sum, launch) =>
-                sum + (launch.adCreatives ? .reduce((cSum, creative) =>
-                    cSum + (creative.impressions || 0), 0) || 0), 0
+                sum + ((launch.adCreatives && launch.adCreatives.reduce((cSum, creative) =>
+                    cSum + (creative.impressions || 0), 0)) || 0), 0
             );
 
             const dayClicks = dayLaunches.reduce((sum, launch) =>
-                sum + (launch.adCreatives ? .reduce((cSum, creative) =>
-                    cSum + (creative.clicks || 0), 0) || 0), 0
+                sum + ((launch.adCreatives && launch.adCreatives.reduce((cSum, creative) =>
+                    cSum + (creative.clicks || 0), 0)) || 0), 0
             );
 
             launchesByDay.push(dayLaunches.length);
@@ -893,11 +893,11 @@ async function handleGetAnalytics(req, res) {
         // Get top performing launches (based on total impressions)
         const topPerforming = launches
             .map(launch => {
-                const totalLaunchImpressions = launch.adCreatives ? .reduce((sum, creative) =>
-                    sum + (creative.impressions || 0), 0) || 0;
+                const totalLaunchImpressions = (launch.adCreatives && launch.adCreatives.reduce((sum, creative) =>
+                    sum + (creative.impressions || 0), 0)) || 0;
                 return {
                     id: launch.id,
-                    name: launch.name || launch.product ? .title || 'Unnamed Launch',
+                    name: launch.name || (launch.product && launch.product.title) || 'Unnamed Launch',
                     score: Math.min(100, Math.max(60, Math.floor(totalLaunchImpressions / 1000) + 60))
                 };
             })
@@ -956,12 +956,12 @@ async function handleGetLaunchAnalytics(req, res, launchId) {
         }
 
         // Calculate real metrics from creatives
-        const totalImpressions = launch.adCreatives ? .reduce((sum, creative) =>
-            sum + (creative.impressions || 0), 0) || 0;
-        const totalClicks = launch.adCreatives ? .reduce((sum, creative) =>
-            sum + (creative.clicks || 0), 0) || 0;
-        const totalConversions = launch.adCreatives ? .reduce((sum, creative) =>
-            sum + (creative.conversions || 0), 0) || 0;
+        const totalImpressions = (launch.adCreatives && launch.adCreatives.reduce((sum, creative) =>
+            sum + (creative.impressions || 0), 0)) || 0;
+        const totalClicks = (launch.adCreatives && launch.adCreatives.reduce((sum, creative) =>
+            sum + (creative.clicks || 0), 0)) || 0;
+        const totalConversions = (launch.adCreatives && launch.adCreatives.reduce((sum, creative) =>
+            sum + (creative.conversions || 0), 0)) || 0;
 
         const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0.00';
         const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100).toFixed(2) : '0.00';
@@ -995,7 +995,7 @@ async function handleGetLaunchAnalytics(req, res, launchId) {
             success: true,
             data: {
                 launchId: launchId,
-                launchName: launch.name || launch.product ? .title || 'Unnamed Launch',
+                launchName: launch.name || (launch.product && launch.product.title) || 'Unnamed Launch',
                 metrics: {
                     impressions: totalImpressions,
                     clicks: totalClicks,
