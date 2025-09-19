@@ -275,50 +275,15 @@ async function handleGenerateLaunch(req, res, launchId) {
             data: { status: 'GENERATING' }
         });
 
-        // Import AI service
-        console.log('Importing AI service...');
-        const { aiService } = await
-        import ('../src/services/ai.js');
-        console.log('AI service imported, initializing...');
-        await aiService.initialize();
-        console.log('AI service initialized successfully');
+        // For now, use mock content instead of AI service to test functionality
+        console.log('Generating mock content for testing...');
 
-        // Generate AI content
-        console.log('Generating AI content...');
-        const aiResponse = await aiService.generateText(`
-Generate engaging social media content for this product:
-
-Product: ${launch.product.title}
-Price: $${launch.product.price}
-Category: ${launch.product.category}
-Brand: ${launch.product.brand}
-Description: ${launch.product.description}
-
-Generate:
-1. A catchy headline (max 60 characters)
-2. Engaging post copy (max 280 characters)
-3. 5 relevant hashtags
-4. Call-to-action suggestion
-
-Target audience: ${launch.inputs.targetAudience}
-Tone: ${launch.inputs.brandTone}
-Platform: Instagram
-
-Make it compelling and conversion-focused.
-        `, {
-            model: 'mistralai/Mistral-7B-Instruct-v0.1',
-            maxTokens: 500,
-            temperature: 0.7,
-            provider: 'togetherai'
-        });
-
-        // Extract content from AI response
         const extractedContent = {
-            headline: aiResponse.text.split('\n')[0] || 'Amazing Product',
-            postCopy: aiResponse.text.split('\n')[1] || 'Discover this amazing product',
-            hashtags: aiResponse.text.split('\n')[2] || '#product #amazing #shop',
-            callToAction: aiResponse.text.split('\n')[3] || 'Shop Now',
-            fullResponse: aiResponse.text
+            headline: `Amazing ${launch.product.title}`,
+            postCopy: `Discover the incredible ${launch.product.title}! Perfect for ${launch.inputs.targetAudience || 'everyone'}. Get yours today!`,
+            hashtags: `#${launch.product.category.toLowerCase()} #${launch.product.brand?.toLowerCase() || 'product'} #amazing #shop #deals`,
+            callToAction: 'Shop Now',
+            fullResponse: `Mock content generated for ${launch.product.title}`
         };
 
         // Update launch with generated content
@@ -348,34 +313,13 @@ Make it compelling and conversion-focused.
 
             for (const platform of platforms) {
                 try {
-                    // Generate ad creative for this platform
-                    const creativePrompt = `
-Generate a compelling ad creative for ${platform} platform:
-
-Product: ${launch.product.title}
-Price: $${launch.product.price}
-Category: ${launch.product.category}
-Description: ${launch.product.description}
-
-Platform: ${platform}
-Target Audience: ${launch.inputs.targetAudience}
-Brand Tone: ${launch.inputs.brandTone}
-
-Generate:
-1. Headline (platform-appropriate length)
-2. Ad copy (engaging and conversion-focused)
-3. Call-to-action
-4. Key benefits to highlight
-
-Make it platform-specific and compelling.
-                    `;
-
-                    const creativeResponse = await aiService.generateText(creativePrompt, {
-                        model: 'mistralai/Mistral-7B-Instruct-v0.1',
-                        maxTokens: 400,
-                        temperature: 0.8,
-                        provider: 'togetherai'
-                    });
+                    // Create mock ad creative for this platform
+                    const mockCreative = {
+                        headline: `${launch.product.title} - ${platform.toUpperCase()} Special!`,
+                        adCopy: `Get the amazing ${launch.product.title} now! Perfect for ${launch.inputs.targetAudience || 'everyone'}. Limited time offer!`,
+                        callToAction: 'Shop Now',
+                        fullResponse: `Mock ${platform} creative for ${launch.product.title}`
+                    };
 
                     // Create ad creative record
                     const adCreative = await localPrisma.adCreative.create({
@@ -388,12 +332,7 @@ Make it platform-specific and compelling.
                                 brandTone: launch.inputs.brandTone,
                                 productId: launch.productId
                             },
-                            outputs: {
-                                headline: creativeResponse.text.split('\n')[0] || 'Amazing Product',
-                                adCopy: creativeResponse.text.split('\n')[1] || 'Discover this amazing product',
-                                callToAction: creativeResponse.text.split('\n')[2] || 'Shop Now',
-                                fullResponse: creativeResponse.text
-                            },
+                            outputs: mockCreative,
                             status: 'COMPLETED',
                             metrics: {
                                 generated: true,
