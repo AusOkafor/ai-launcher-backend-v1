@@ -43,62 +43,40 @@ export default async function handler(req, res) {
     }
 
     try {
-        console.log('Launch-creatives API called with URL:', req.url, 'Method:', req.method);
+        const { path } = req.query;
+        const pathSegments = path ? path.split('/') : [];
 
-        // Test endpoint - handle both root and launches path
-        if ((req.url === '/' || req.url === '/launches') && req.method === 'GET') {
-            return res.status(200).json({
-                success: true,
-                data: {
-                    launches: [],
-                    message: 'API is working',
-                    receivedUrl: req.url
-                }
-            });
+        console.log('Launch-creatives API called with path:', path, 'segments:', pathSegments, 'Method:', req.method);
+
+        // Route based on path segments
+        if (pathSegments[0] === 'launches') {
+            return handleLaunches(req, res, pathSegments);
         }
 
-        // Handle launches endpoints
-        if (req.url.match(/^\/launches$/) && req.method === 'GET') {
-            return handleGetLaunches(req, res);
+        if (pathSegments[0] === 'templates') {
+            return handleTemplates(req, res, pathSegments);
         }
 
-        if (req.url.match(/^\/launches$/) && req.method === 'POST') {
-            return handleCreateLaunch(req, res);
+        if (pathSegments[0] === 'ad-creatives') {
+            return handleAdCreatives(req, res, pathSegments);
         }
 
-        if (req.url.match(/^\/launches\/[^\/]+\/generate$/) && req.method === 'POST') {
-            return handleGenerateLaunch(req, res);
+        if (pathSegments[0] === 'images') {
+            return handleImages(req, res, pathSegments);
         }
 
-        if (req.url.match(/^\/launches\/[^\/]+$/) && req.method === 'DELETE') {
-            return handleDeleteLaunch(req, res);
-        }
-
-        // Handle templates endpoint
-        if (req.url.match(/^\/templates$/) && req.method === 'GET') {
-            return handleGetTemplates(req, res);
-        }
-
-        // Handle ad creative generation endpoints
-        if (req.url.match(/^\/ad-creatives\/launch\/[^\/]+\/generate$/) && req.method === 'POST') {
-            return handleGenerateAdCreatives(req, res);
-        }
-
-        if (req.url.match(/^\/ad-creatives\/launch\/[^\/]+\/optimize$/) && req.method === 'POST') {
-            return handleOptimizeAdCreatives(req, res);
-        }
-
-        if (req.url.match(/^\/ad-creatives\/generate$/) && req.method === 'POST') {
-            return handleGenerateAdCreative(req, res);
-        }
-
-        if (req.url.match(/^\/images\/creative\/[^\/]+\/create-ad-creative$/) && req.method === 'POST') {
-            return handleCreateAdCreativeImage(req, res);
-        }
-
-        return res.status(404).json({
-            success: false,
-            error: 'Endpoint not found'
+        // Default test endpoint
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: 'Launch-creatives API is working',
+                availableEndpoints: [
+                    '/api/launch-creatives?path=launches',
+                    '/api/launch-creatives?path=templates',
+                    '/api/launch-creatives?path=ad-creatives/generate',
+                    '/api/launch-creatives?path=images/creative/{id}/create-ad-creative'
+                ]
+            }
         });
 
     } catch (error) {
@@ -111,6 +89,91 @@ export default async function handler(req, res) {
             }
         });
     }
+}
+
+// Handle launches endpoints
+async function handleLaunches(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        // GET /api/launch-creatives?path=launches
+        return handleGetLaunches(req, res);
+    }
+
+    if (req.method === 'POST') {
+        // POST /api/launch-creatives?path=launches
+        if (pathSegments.length === 1) {
+            return handleCreateLaunch(req, res);
+        }
+
+        // POST /api/launch-creatives?path=launches/{id}/generate
+        if (pathSegments.length === 3 && pathSegments[2] === 'generate') {
+            return handleGenerateLaunch(req, res, pathSegments[1]);
+        }
+    }
+
+    if (req.method === 'DELETE') {
+        // DELETE /api/launch-creatives?path=launches/{id}
+        if (pathSegments.length === 2) {
+            return handleDeleteLaunch(req, res, pathSegments[1]);
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle templates endpoints
+async function handleTemplates(req, res, pathSegments) {
+    if (req.method === 'GET') {
+        // GET /api/launch-creatives?path=templates
+        return handleGetTemplates(req, res);
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle ad creatives endpoints
+async function handleAdCreatives(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        // POST /api/launch-creatives?path=ad-creatives/generate
+        if (pathSegments.length === 2 && pathSegments[1] === 'generate') {
+            return handleGenerateAdCreative(req, res);
+        }
+
+        // POST /api/launch-creatives?path=ad-creatives/launch/{id}/generate
+        if (pathSegments.length === 4 && pathSegments[1] === 'launch' && pathSegments[3] === 'generate') {
+            return handleGenerateAdCreatives(req, res, pathSegments[2]);
+        }
+
+        // POST /api/launch-creatives?path=ad-creatives/launch/{id}/optimize
+        if (pathSegments.length === 4 && pathSegments[1] === 'launch' && pathSegments[3] === 'optimize') {
+            return handleOptimizeAdCreatives(req, res, pathSegments[2]);
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
+}
+
+// Handle images endpoints
+async function handleImages(req, res, pathSegments) {
+    if (req.method === 'POST') {
+        // POST /api/launch-creatives?path=images/creative/{id}/create-ad-creative
+        if (pathSegments.length === 4 && pathSegments[1] === 'creative' && pathSegments[3] === 'create-ad-creative') {
+            return handleCreateAdCreativeImage(req, res, pathSegments[2]);
+        }
+    }
+
+    return res.status(405).json({
+        success: false,
+        error: { message: 'Method not allowed' }
+    });
 }
 
 // Handle getting launches
@@ -185,9 +248,8 @@ async function handleCreateLaunch(req, res) {
 }
 
 // Handle generate launch endpoint
-async function handleGenerateLaunch(req, res) {
+async function handleGenerateLaunch(req, res, launchId) {
     try {
-        const launchId = req.url.split('/')[3];
 
         // Create Prisma client inside function to avoid scope issues
         const localPrisma = new PrismaClient();
@@ -393,9 +455,8 @@ Make it platform-specific and compelling.
 }
 
 // Handle deleting launches
-async function handleDeleteLaunch(req, res) {
+async function handleDeleteLaunch(req, res, launchId) {
     try {
-        const launchId = req.url.split('/')[3];
         const localPrisma = new PrismaClient();
 
         // Check if launch exists
@@ -510,9 +571,8 @@ async function handleGetTemplates(req, res) {
 }
 
 // Handle ad creative generation for a specific launch
-async function handleGenerateAdCreatives(req, res) {
+async function handleGenerateAdCreatives(req, res, launchId) {
     try {
-        const launchId = req.url.split('/')[4];
         const localPrisma = new PrismaClient();
 
         // Mock response for now
@@ -540,9 +600,8 @@ async function handleGenerateAdCreatives(req, res) {
 }
 
 // Handle ad creative optimization
-async function handleOptimizeAdCreatives(req, res) {
+async function handleOptimizeAdCreatives(req, res, launchId) {
     try {
-        const launchId = req.url.split('/')[4];
 
         // Mock response for now
         return res.status(200).json({
@@ -594,9 +653,8 @@ async function handleGenerateAdCreative(req, res) {
 }
 
 // Handle ad creative image generation
-async function handleCreateAdCreativeImage(req, res) {
+async function handleCreateAdCreativeImage(req, res, creativeId) {
     try {
-        const creativeId = req.url.split('/')[4];
 
         // Mock response for now
         return res.status(200).json({
