@@ -820,26 +820,107 @@ async function handleAnalytics(req, res, pathSegments) {
 // Handle get analytics
 async function handleGetAnalytics(req, res) {
     try {
-        // Mock response for now
+        const localPrisma = new PrismaClient();
+
+        // Get all launches with their creatives
+        const launches = await localPrisma.launch.findMany({
+            include: {
+                product: true,
+                adCreatives: true
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        // Calculate real analytics
+        const totalLaunches = launches.length;
+        const totalCreatives = launches.reduce((sum, launch) => sum + (launch.adCreatives ? .length || 0), 0);
+
+        // Calculate total impressions and clicks from creatives
+        let totalImpressions = 0;
+        let totalClicks = 0;
+        let totalConversions = 0;
+
+        launches.forEach(launch => {
+            if (launch.adCreatives) {
+                launch.adCreatives.forEach(creative => {
+                    totalImpressions += creative.impressions || 0;
+                    totalClicks += creative.clicks || 0;
+                    totalConversions += creative.conversions || 0;
+                });
+            }
+        });
+
+        // Generate trends data based on actual launches (last 7 days)
+        const now = new Date();
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        const launchesByDay = [];
+        const creativesByDay = [];
+        const impressionsByDay = [];
+        const clicksByDay = [];
+
+        for (let i = 6; i >= 0; i--) {
+            const day = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+            const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+            const dayLaunches = launches.filter(launch =>
+                launch.createdAt >= dayStart && launch.createdAt < dayEnd
+            );
+
+            const dayCreatives = dayLaunches.reduce((sum, launch) =>
+                sum + (launch.adCreatives ? .length || 0), 0
+            );
+
+            const dayImpressions = dayLaunches.reduce((sum, launch) =>
+                sum + (launch.adCreatives ? .reduce((cSum, creative) =>
+                    cSum + (creative.impressions || 0), 0) || 0), 0
+            );
+
+            const dayClicks = dayLaunches.reduce((sum, launch) =>
+                sum + (launch.adCreatives ? .reduce((cSum, creative) =>
+                    cSum + (creative.clicks || 0), 0) || 0), 0
+            );
+
+            launchesByDay.push(dayLaunches.length);
+            creativesByDay.push(dayCreatives);
+            impressionsByDay.push(dayImpressions);
+            clicksByDay.push(dayClicks);
+        }
+
+        // Get top performing launches (based on total impressions)
+        const topPerforming = launches
+            .map(launch => {
+                const totalLaunchImpressions = launch.adCreatives ? .reduce((sum, creative) =>
+                    sum + (creative.impressions || 0), 0) || 0;
+                return {
+                    id: launch.id,
+                    name: launch.name || launch.product ? .title || 'Unnamed Launch',
+                    score: Math.min(100, Math.max(60, Math.floor(totalLaunchImpressions / 1000) + 60))
+                };
+            })
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 3);
+
+        await localPrisma.$disconnect();
+
         return res.status(200).json({
             success: true,
             data: {
-                totalLaunches: 12,
-                totalCreatives: 45,
-                totalImpressions: 125000,
-                totalClicks: 3500,
-                totalConversions: 180,
+                totalLaunches,
+                totalCreatives,
+                totalImpressions,
+                totalClicks,
+                totalConversions,
                 trends: {
-                    launches: [10, 12, 8, 15, 12, 18, 12],
-                    creatives: [25, 30, 22, 35, 30, 42, 45],
-                    impressions: [80000, 95000, 70000, 110000, 95000, 140000, 125000],
-                    clicks: [2000, 2400, 1800, 2800, 2400, 3200, 3500]
+                    launches: launchesByDay,
+                    creatives: creativesByDay,
+                    impressions: impressionsByDay,
+                    clicks: clicksByDay
                 },
-                topPerforming: [
-                    { id: '1', name: 'Tech Product Launch', score: 95 },
-                    { id: '2', name: 'Fashion Campaign', score: 88 },
-                    { id: '3', name: 'Home Decor', score: 82 }
-                ]
+                topPerforming
             }
         });
 
@@ -855,26 +936,75 @@ async function handleGetAnalytics(req, res) {
 // Handle get launch analytics
 async function handleGetLaunchAnalytics(req, res, launchId) {
     try {
-        // Mock response for now
+        const localPrisma = new PrismaClient();
+
+        // Get the specific launch with its creatives
+        const launch = await localPrisma.launch.findUnique({
+            where: { id: launchId },
+            include: {
+                product: true,
+                adCreatives: true
+            }
+        });
+
+        if (!launch) {
+            await localPrisma.$disconnect();
+            return res.status(404).json({
+                success: false,
+                error: { message: 'Launch not found' }
+            });
+        }
+
+        // Calculate real metrics from creatives
+        const totalImpressions = launch.adCreatives ? .reduce((sum, creative) =>
+            sum + (creative.impressions || 0), 0) || 0;
+        const totalClicks = launch.adCreatives ? .reduce((sum, creative) =>
+            sum + (creative.clicks || 0), 0) || 0;
+        const totalConversions = launch.adCreatives ? .reduce((sum, creative) =>
+            sum + (creative.conversions || 0), 0) || 0;
+
+        const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions * 100).toFixed(2) : '0.00';
+        const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100).toFixed(2) : '0.00';
+
+        // Generate daily trends for the last 5 days
+        const now = new Date();
+        const dailyTrends = [];
+
+        for (let i = 4; i >= 0; i--) {
+            const day = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+            const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+            // For now, we'll use proportional distribution of total metrics
+            // In a real app, you'd have daily tracking data
+            const dayImpressions = Math.floor(totalImpressions / 5) + Math.floor(Math.random() * 200) - 100;
+            const dayClicks = Math.floor(totalClicks / 5) + Math.floor(Math.random() * 20) - 10;
+            const dayConversions = Math.floor(totalConversions / 5) + Math.floor(Math.random() * 5) - 2;
+
+            dailyTrends.push({
+                date: dayStart.toISOString().split('T')[0],
+                impressions: Math.max(0, dayImpressions),
+                clicks: Math.max(0, dayClicks),
+                conversions: Math.max(0, dayConversions)
+            });
+        }
+
+        await localPrisma.$disconnect();
+
         return res.status(200).json({
             success: true,
             data: {
                 launchId: launchId,
+                launchName: launch.name || launch.product ? .title || 'Unnamed Launch',
                 metrics: {
-                    impressions: Math.floor(Math.random() * 50000) + 10000,
-                    clicks: Math.floor(Math.random() * 2000) + 500,
-                    conversions: Math.floor(Math.random() * 100) + 20,
-                    ctr: (Math.random() * 3 + 1).toFixed(2) + '%',
-                    conversionRate: (Math.random() * 5 + 2).toFixed(2) + '%'
+                    impressions: totalImpressions,
+                    clicks: totalClicks,
+                    conversions: totalConversions,
+                    ctr: ctr + '%',
+                    conversionRate: conversionRate + '%'
                 },
                 trends: {
-                    daily: [
-                        { date: '2024-01-01', impressions: 1200, clicks: 45, conversions: 3 },
-                        { date: '2024-01-02', impressions: 1500, clicks: 52, conversions: 4 },
-                        { date: '2024-01-03', impressions: 1800, clicks: 68, conversions: 5 },
-                        { date: '2024-01-04', impressions: 2100, clicks: 75, conversions: 6 },
-                        { date: '2024-01-05', impressions: 1900, clicks: 71, conversions: 5 }
-                    ]
+                    daily: dailyTrends
                 },
                 audience: {
                     demographics: {
