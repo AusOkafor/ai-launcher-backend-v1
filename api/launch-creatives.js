@@ -533,8 +533,8 @@ async function handleGetTemplates(req, res) {
         const transformedTemplates = templates.map(template => ({
             ...template,
             // Add aspectRatio and platform at template level for frontend compatibility
-            aspectRatio: template.settings ? .aspectRatio || '1:1',
-            platform: template.settings ? .platform || 'instagram'
+            aspectRatio: (template.settings && template.settings.aspectRatio) || '1:1',
+            platform: (template.settings && template.settings.platform) || 'instagram'
         }));
 
         return res.status(200).json({
@@ -574,8 +574,8 @@ async function handleSaveTemplate(req, res) {
         // Ensure settings include aspectRatio and platform for frontend compatibility
         const settings = {
             ...templateData.settings,
-            aspectRatio: templateData.aspectRatio || templateData.settings ? .aspectRatio || '1:1',
-            platform: templateData.platform || templateData.settings ? .platform || 'instagram'
+            aspectRatio: templateData.aspectRatio || (templateData.settings && templateData.settings.aspectRatio) || '1:1',
+            platform: templateData.platform || (templateData.settings && templateData.settings.platform) || 'instagram'
         };
 
         // Save template to database
@@ -635,8 +635,8 @@ async function handleGetUserTemplates(req, res) {
         const transformedTemplates = userTemplates.map(template => ({
             ...template,
             // Add aspectRatio and platform at template level for frontend compatibility
-            aspectRatio: template.settings ? .aspectRatio || '1:1',
-            platform: template.settings ? .platform || 'instagram'
+            aspectRatio: (template.settings && template.settings.aspectRatio) || '1:1',
+            platform: (template.settings && template.settings.platform) || 'instagram'
         }));
 
         console.log('Found user templates:', transformedTemplates.length);
