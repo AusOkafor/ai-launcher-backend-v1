@@ -371,6 +371,8 @@ async function handleGenerateLaunch(req, res, launchId) {
                                 platform: platform,
                                 targetAudience: launch.inputs.targetAudience,
                                 brandTone: launch.inputs.brandTone,
+                                tone: launch.inputs.brandTone || 'Professional',
+                                focus: 'Product features and benefits',
                                 productId: launch.productId
                             },
                             outputs: mockCreative,
@@ -378,7 +380,12 @@ async function handleGenerateLaunch(req, res, launchId) {
                             metrics: {
                                 generated: true,
                                 platform: platform,
-                                generatedAt: new Date().toISOString()
+                                generatedAt: new Date().toISOString(),
+                                ctr: Math.random() * 0.03 + 0.01, // 1-4% CTR
+                                impressions: Math.floor(Math.random() * 10000) + 1000, // 1K-11K impressions
+                                clicks: Math.floor(Math.random() * 300) + 50, // 50-350 clicks
+                                spend: Math.random() * 100 + 20, // $20-120 spend
+                                conversions: Math.floor(Math.random() * 20) + 5 // 5-25 conversions
                             }
                         }
                     });
