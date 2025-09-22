@@ -348,9 +348,18 @@ async function handleGenerateLaunch(req, res, launchId) {
                     // Create mock ad creative for this platform
                     const mockCreative = {
                         headline: `${launch.product.title} - ${platform.toUpperCase()} Special!`,
+                        description: `Get the amazing ${launch.product.title} now! Perfect for ${launch.inputs.targetAudience || 'everyone'}. Limited time offer!`,
                         adCopy: `Get the amazing ${launch.product.title} now! Perfect for ${launch.inputs.targetAudience || 'everyone'}. Limited time offer!`,
                         callToAction: 'Shop Now',
-                        fullResponse: `Mock ${platform} creative for ${launch.product.title}`
+                        cta: 'Shop Now',
+                        hashtags: `#${launch.product.title.toLowerCase().replace(/\s+/g, '')} #${platform} #amazing #shop #deals #limitedtime`,
+                        keywords: [launch.product.title, platform, 'amazing', 'shop', 'deals'],
+                        fullResponse: `Mock ${platform} creative for ${launch.product.title}`,
+                        targeting: {
+                            interests: ['Shopping', 'Technology', 'Lifestyle'],
+                            demographics: ['18-34', 'Urban', 'Tech-savvy'],
+                            behaviors: ['Online shoppers', 'Social media users']
+                        }
                     };
 
                     // Create ad creative record
