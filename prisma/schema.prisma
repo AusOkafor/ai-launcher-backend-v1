@@ -508,6 +508,7 @@ model AdCreative {
   templateId String? // Reference to creative template
   abTestId  String?  // Reference to A/B test
   variationId String? // Reference to creative variation
+  publishedAds Json? // Published ad IDs across platforms
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1099,5 +1100,23 @@ model TemplateCollection {
   @@index([category])
   @@index([isPublic])
   @@index([isPremium])
+}
+
+// Ad Platform Connections for API integrations
+model AdPlatformConnection {
+  id            String   @id @default(cuid())
+  platform      String   // "meta", "google", "tiktok", "pinterest"
+  accountId     String   // Platform-specific account ID
+  accessToken   String   // OAuth access token
+  refreshToken  String?  // OAuth refresh token (for Google)
+  accountInfo   Json?    // Account details from platform
+  isActive      Boolean  @default(true)
+  lastConnected DateTime @default(now())
+  workspaceId   String?  // Associated workspace
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([platform, accountId], name: "platform_accountId")
+  @@map("ad_platform_connections")
 }
 

@@ -216,9 +216,9 @@ Launch-Generated Content (use as inspiration):
 - Call to Action: ${launchOutputs.callToAction || 'N/A'}
 
 Launch Strategy:
-- Budget: $${launchStrategy?.budget || 'Not specified'}
-- Launch Window: ${launchStrategy?.launchWindow || 'Not specified'}
-- Additional Notes: ${launchStrategy?.additionalNotes || 'None'}
+- Budget: $${(launchStrategy && launchStrategy.budget) || 'Not specified'}
+- Launch Window: ${(launchStrategy && launchStrategy.launchWindow) || 'Not specified'}
+- Additional Notes: ${(launchStrategy && launchStrategy.additionalNotes) || 'None'}
             `.trim()
         }
 

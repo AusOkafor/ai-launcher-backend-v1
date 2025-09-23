@@ -750,8 +750,8 @@ Respond naturally and helpfully:`;
         console.error('❌ LLM Error:', error);
         console.error('📊 LLM Error details:', {
             message: error.message,
-            status: error.response?.status,
-            data: error.response?.data
+            status: (error.response && error.response.status),
+            data: (error.response && error.response.data)
         });
     }
     

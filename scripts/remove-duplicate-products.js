@@ -33,7 +33,7 @@ async function removeDuplicateProducts() {
         const duplicates = [];
         Object.entries(productGroups).forEach(([key, group]) => {
             if (group.length > 1) {
-                console.log(`Found ${group.length} duplicates for: ${group[0].title} (Store: ${group[0].store?.name})`);
+                console.log(`Found ${group.length} duplicates for: ${group[0].title} (Store: ${(group[0].store && group[0].store.name) || 'Unknown'})`);
                 duplicates.push(...group.slice(1)); // Keep first, mark rest as duplicates
             }
         });

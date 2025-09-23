@@ -313,7 +313,7 @@ async function handleGenerateLaunch(req, res, launchId) {
         const extractedContent = {
             headline: `Amazing ${launch.product.title}`,
             postCopy: `Discover the incredible ${launch.product.title}! Perfect for ${launch.inputs.targetAudience || 'everyone'}. Get yours today!`,
-            hashtags: `#${launch.product.category.toLowerCase()} #${launch.product.brand?.toLowerCase() || 'product'} #amazing #shop #deals`,
+            hashtags: `#${launch.product.category.toLowerCase()} #${(launch.product.brand && launch.product.brand.toLowerCase()) || 'product'} #amazing #shop #deals`,
             callToAction: 'Shop Now',
             fullResponse: `Mock content generated for ${launch.product.title}`
         };
