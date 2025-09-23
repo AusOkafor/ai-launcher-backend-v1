@@ -54,6 +54,11 @@ export default async function handler(req, res) {
 
         console.log('Ad-platforms API called with path:', path, 'segments:', pathSegments, 'Method:', req.method);
 
+        // Mock/Test endpoints for development
+        if (pathSegments[0] === 'mock') {
+            return handleMockEndpoints(req, res, pathSegments);
+        }
+
         // Route based on path segments
         if (pathSegments[0] === 'meta') {
             return handleMetaIntegration(req, res, pathSegments);
@@ -89,6 +94,13 @@ export default async function handler(req, res) {
             data: {
                 message: 'Ad-platforms API is working',
                 availableEndpoints: [
+                    '/api/ad-platforms?path=mock/connect/meta',
+                    '/api/ad-platforms?path=mock/connect/google',
+                    '/api/ad-platforms?path=mock/connect/tiktok',
+                    '/api/ad-platforms?path=mock/connect/pinterest',
+                    '/api/ad-platforms?path=mock/publish/creative/{id}',
+                    '/api/ad-platforms?path=mock/performance/creative/{id}',
+                    '/api/ad-platforms?path=mock/accounts',
                     '/api/ad-platforms?path=meta/connect',
                     '/api/ad-platforms?path=google/connect',
                     '/api/ad-platforms?path=tiktok/connect',
@@ -1086,4 +1098,248 @@ async function fetchPinterestPerformance(connection, adId) {
             error: error.message
         };
     }
+}
+
+// Mock endpoints for development testing
+async function handleMockEndpoints(req, res, pathSegments) {
+    if (pathSegments[1] === 'connect') {
+        return handleMockConnect(req, res, pathSegments[2]);
+    }
+
+    if (pathSegments[1] === 'publish') {
+        return handleMockPublish(req, res, pathSegments);
+    }
+
+    if (pathSegments[1] === 'performance') {
+        return handleMockPerformance(req, res, pathSegments);
+    }
+
+    if (pathSegments[1] === 'accounts') {
+        return handleMockAccounts(req, res);
+    }
+
+    return res.status(404).json({ success: false, error: { message: 'Mock endpoint not found' } });
+}
+
+// Mock connection endpoints
+async function handleMockConnect(req, res, platform) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ success: false, error: { message: 'Method not allowed' } });
+    }
+
+    const mockConnections = {
+        meta: {
+            id: 'mock_meta_conn_123',
+            platform: 'meta',
+            accountId: 'act_123456789',
+            accountName: 'Mock Meta Business Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        },
+        google: {
+            id: 'mock_google_conn_456',
+            platform: 'google',
+            accountId: '1234567890',
+            accountName: 'Mock Google Ads Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        },
+        tiktok: {
+            id: 'mock_tiktok_conn_789',
+            platform: 'tiktok',
+            accountId: '1234567890',
+            accountName: 'Mock TikTok Ads Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        },
+        pinterest: {
+            id: 'mock_pinterest_conn_012',
+            platform: 'pinterest',
+            accountId: '1234567890',
+            accountName: 'Mock Pinterest Ads Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        }
+    };
+
+    if (!platform || !mockConnections[platform]) {
+        return res.status(400).json({
+            success: false,
+            error: { message: 'Invalid platform. Use: meta, google, tiktok, pinterest' }
+        });
+    }
+
+    // Simulate successful connection
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+
+    return res.status(200).json({
+        success: true,
+        data: {
+            message: `${platform.charAt(0).toUpperCase() + platform.slice(1)} account connected successfully (MOCK)`,
+            connection: mockConnections[platform]
+        }
+    });
+}
+
+// Mock publishing endpoints
+async function handleMockPublish(req, res, pathSegments) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ success: false, error: { message: 'Method not allowed' } });
+    }
+
+    const { platforms, campaignSettings } = req.body;
+
+    if (!platforms || !Array.isArray(platforms) || platforms.length === 0) {
+        return res.status(400).json({
+            success: false,
+            error: { message: 'Platforms array is required' }
+        });
+    }
+
+    // Simulate publishing delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const mockResults = {};
+    const errors = [];
+
+    platforms.forEach(platform => {
+        if (['meta', 'google', 'tiktok', 'pinterest'].includes(platform)) {
+            mockResults[platform] = {
+                campaignId: `mock_${platform}_campaign_${Date.now()}`,
+                adId: `mock_${platform}_ad_${Date.now()}`,
+                status: 'active',
+                budget: campaignSettings && campaignSettings.dailyBudget || 50
+            };
+        } else {
+            errors.push(`Unsupported platform: ${platform}`);
+        }
+    });
+
+    return res.status(200).json({
+        success: true,
+        data: {
+            message: `Creative published to ${Object.keys(mockResults).length} platform(s) (MOCK)`,
+            results: mockResults,
+            errors: errors
+        }
+    });
+}
+
+// Mock performance endpoints
+async function handleMockPerformance(req, res, pathSegments) {
+    if (req.method !== 'GET') {
+        return res.status(405).json({ success: false, error: { message: 'Method not allowed' } });
+    }
+
+    const { platform } = req.query;
+
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const mockPerformance = {
+        meta: {
+            impressions: Math.floor(Math.random() * 20000) + 5000,
+            clicks: Math.floor(Math.random() * 500) + 100,
+            spend: Math.random() * 200 + 50,
+            ctr: Math.random() * 0.05 + 0.01,
+            conversions: Math.floor(Math.random() * 50) + 10,
+            cpm: Math.random() * 10 + 2,
+            cpc: Math.random() * 2 + 0.5
+        },
+        google: {
+            impressions: Math.floor(Math.random() * 15000) + 3000,
+            clicks: Math.floor(Math.random() * 400) + 80,
+            spend: Math.random() * 150 + 40,
+            ctr: Math.random() * 0.04 + 0.01,
+            conversions: Math.floor(Math.random() * 40) + 8,
+            cpm: Math.random() * 8 + 1.5,
+            cpc: Math.random() * 1.5 + 0.3
+        },
+        tiktok: {
+            impressions: Math.floor(Math.random() * 25000) + 8000,
+            clicks: Math.floor(Math.random() * 600) + 150,
+            spend: Math.random() * 180 + 60,
+            ctr: Math.random() * 0.06 + 0.02,
+            conversions: Math.floor(Math.random() * 60) + 15,
+            cpm: Math.random() * 12 + 3,
+            cpc: Math.random() * 2.5 + 0.8
+        },
+        pinterest: {
+            impressions: Math.floor(Math.random() * 12000) + 2000,
+            clicks: Math.floor(Math.random() * 300) + 60,
+            spend: Math.random() * 120 + 30,
+            ctr: Math.random() * 0.03 + 0.01,
+            conversions: Math.floor(Math.random() * 30) + 5,
+            cpm: Math.random() * 6 + 1,
+            cpc: Math.random() * 1.2 + 0.4
+        }
+    };
+
+    if (platform && mockPerformance[platform]) {
+        return res.status(200).json({
+            success: true,
+            data: {
+                platform: platform,
+                performance: mockPerformance[platform],
+                period: 'last_7_days',
+                generatedAt: new Date().toISOString()
+            }
+        });
+    }
+
+    // Return all platforms performance
+    return res.status(200).json({
+        success: true,
+        data: {
+            performance: mockPerformance,
+            period: 'last_7_days',
+            generatedAt: new Date().toISOString()
+        }
+    });
+}
+
+// Mock accounts endpoint
+async function handleMockAccounts(req, res) {
+    if (req.method !== 'GET') {
+        return res.status(405).json({ success: false, error: { message: 'Method not allowed' } });
+    }
+
+    const mockAccounts = {
+        meta: [{
+            id: 'mock_meta_conn_123',
+            accountId: 'act_123456789',
+            accountName: 'Mock Meta Business Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        }],
+        google: [{
+            id: 'mock_google_conn_456',
+            accountId: '1234567890',
+            accountName: 'Mock Google Ads Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        }],
+        tiktok: [{
+            id: 'mock_tiktok_conn_789',
+            accountId: '1234567890',
+            accountName: 'Mock TikTok Ads Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        }],
+        pinterest: [{
+            id: 'mock_pinterest_conn_012',
+            accountId: '1234567890',
+            accountName: 'Mock Pinterest Ads Account',
+            isActive: true,
+            lastConnected: new Date().toISOString()
+        }]
+    };
+
+    return res.status(200).json({
+        success: true,
+        data: {
+            accounts: mockAccounts,
+            totalConnections: Object.values(mockAccounts).flat().length
+        }
+    });
 }
