@@ -332,20 +332,26 @@ async function handleAdAccounts(req, res, pathSegments) {
 // Meta Integration Handlers
 async function handleMetaConnect(req, res) {
     try {
+        console.log('Meta connect request received');
         const { appId, accessToken, sandboxAdAccountId } = req.body;
+        console.log('Request body:', { appId, hasAccessToken: !!accessToken, sandboxAdAccountId });
 
         // Validate required fields
         if (!accessToken || !appId || !sandboxAdAccountId) {
+            console.log('Validation failed - missing required fields');
             return res.status(400).json({
                 success: false,
                 error: { message: 'App ID, access token, and sandbox ad account ID are required' }
             });
         }
 
+        console.log('Testing Meta connection...');
         // Test the connection by fetching app info
         const accountInfo = await testMetaConnection(accessToken, appId);
+        console.log('Meta connection test result:', accountInfo);
 
         if (!accountInfo.success) {
+            console.log('Meta connection test failed:', accountInfo.error);
             return res.status(400).json({
                 success: false,
                 error: { message: 'Failed to connect to Meta account', details: accountInfo.error }
@@ -362,42 +368,51 @@ async function handleMetaConnect(req, res) {
         }
 
         // Store the connection in database
+        console.log('Storing connection in database...');
         const localPrisma = new PrismaClient();
-        const connection = await localPrisma.adPlatformConnection.upsert({
-            where: {
-                platform_accountId: {
-                    platform: 'meta',
-                    accountId: appId
-                }
-            },
-            update: {
-                accessToken: accessToken,
-                accountInfo: {
-                    ...accountInfo.data,
-                    sandboxAdAccountId: sandboxAdAccountId,
-                    sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
-                    sandboxAvailable: sandboxInfo.success
-                },
-                isActive: true,
-                lastConnected: new Date()
-            },
-            create: {
-                platform: 'meta',
-                accountId: appId,
-                accessToken: accessToken,
-                accountInfo: {
-                    ...accountInfo.data,
-                    sandboxAdAccountId: sandboxAdAccountId,
-                    sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
-                    sandboxAvailable: sandboxInfo.success
-                },
-                isActive: true,
-                lastConnected: new Date(),
-                workspaceId: 'test-workspace-id' // TODO: Get from auth
-            }
-        });
 
-        await localPrisma.$disconnect();
+        try {
+            const connection = await localPrisma.adPlatformConnection.upsert({
+                where: {
+                    platform_accountId: {
+                        platform: 'meta',
+                        accountId: appId
+                    }
+                },
+                update: {
+                    accessToken: accessToken,
+                    accountInfo: {
+                        ...accountInfo.data,
+                        sandboxAdAccountId: sandboxAdAccountId,
+                        sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
+                        sandboxAvailable: sandboxInfo.success
+                    },
+                    isActive: true,
+                    lastConnected: new Date()
+                },
+                create: {
+                    platform: 'meta',
+                    accountId: appId,
+                    accessToken: accessToken,
+                    accountInfo: {
+                        ...accountInfo.data,
+                        sandboxAdAccountId: sandboxAdAccountId,
+                        sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
+                        sandboxAvailable: sandboxInfo.success
+                    },
+                    isActive: true,
+                    lastConnected: new Date(),
+                    workspaceId: 'test-workspace-id' // TODO: Get from auth
+                }
+            });
+
+            console.log('Connection stored successfully:', connection.id);
+            await localPrisma.$disconnect();
+        } catch (dbError) {
+            console.error('Database error:', dbError);
+            await localPrisma.$disconnect();
+            throw dbError;
+        }
 
         return res.status(200).json({
             success: true,
@@ -414,9 +429,15 @@ async function handleMetaConnect(req, res) {
 
     } catch (error) {
         console.error('Error connecting Meta account:', error);
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
         return res.status(500).json({
             success: false,
-            error: { message: 'Failed to connect Meta account' }
+            error: {
+                message: 'Failed to connect Meta account',
+                details: error.message,
+                type: error.name
+            }
         });
     }
 }
@@ -937,11 +958,15 @@ async function handleGetCreativePerformance(req, res, creativeId) {
 // Ad Accounts Management
 async function handleGetAllAccounts(req, res) {
     try {
+        console.log('Fetching all accounts...');
         const localPrisma = new PrismaClient();
+
+        console.log('Prisma client created, querying database...');
         const connections = await localPrisma.adPlatformConnection.findMany({
             where: { isActive: true }
         });
 
+        console.log(`Found ${connections.length} connections`);
         await localPrisma.$disconnect();
 
         const accounts = connections.map(conn => ({
@@ -953,6 +978,7 @@ async function handleGetAllAccounts(req, res) {
             lastConnected: conn.lastConnected
         }));
 
+        console.log('Returning accounts:', accounts.length);
         return res.status(200).json({
             success: true,
             data: {
@@ -962,9 +988,15 @@ async function handleGetAllAccounts(req, res) {
 
     } catch (error) {
         console.error('Error fetching all accounts:', error);
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
         return res.status(500).json({
             success: false,
-            error: { message: 'Failed to fetch accounts' }
+            error: {
+                message: 'Failed to fetch accounts',
+                details: error.message,
+                type: error.name
+            }
         });
     }
 }
