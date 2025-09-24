@@ -332,13 +332,13 @@ async function handleAdAccounts(req, res, pathSegments) {
 // Meta Integration Handlers
 async function handleMetaConnect(req, res) {
     try {
-        const { appId, accessToken } = req.body;
+        const { appId, accessToken, sandboxAdAccountId } = req.body;
 
         // Validate required fields
-        if (!accessToken || !appId) {
+        if (!accessToken || !appId || !sandboxAdAccountId) {
             return res.status(400).json({
                 success: false,
-                error: { message: 'App ID and access token are required' }
+                error: { message: 'App ID, access token, and sandbox ad account ID are required' }
             });
         }
 
@@ -349,6 +349,16 @@ async function handleMetaConnect(req, res) {
             return res.status(400).json({
                 success: false,
                 error: { message: 'Failed to connect to Meta account', details: accountInfo.error }
+            });
+        }
+
+        // Test sandbox ad account access
+        const sandboxInfo = await testMetaSandboxAccount(accessToken, sandboxAdAccountId);
+
+        if (!sandboxInfo.success) {
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Failed to access sandbox ad account', details: sandboxInfo.error }
             });
         }
 
@@ -363,7 +373,11 @@ async function handleMetaConnect(req, res) {
             },
             update: {
                 accessToken: accessToken,
-                accountInfo: accountInfo.data,
+                accountInfo: {
+                    ...accountInfo.data,
+                    sandboxAdAccountId: sandboxAdAccountId,
+                    sandboxInfo: sandboxInfo.data
+                },
                 isActive: true,
                 lastConnected: new Date()
             },
@@ -371,7 +385,11 @@ async function handleMetaConnect(req, res) {
                 platform: 'meta',
                 accountId: appId,
                 accessToken: accessToken,
-                accountInfo: accountInfo.data,
+                accountInfo: {
+                    ...accountInfo.data,
+                    sandboxAdAccountId: sandboxAdAccountId,
+                    sandboxInfo: sandboxInfo.data
+                },
                 isActive: true,
                 lastConnected: new Date(),
                 workspaceId: 'test-workspace-id' // TODO: Get from auth
@@ -983,6 +1001,44 @@ async function testMetaConnection(accessToken, appId) {
                 name: data.name || 'Meta App',
                 status: 'active',
                 type: 'app'
+            }
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+async function testMetaSandboxAccount(accessToken, sandboxAdAccountId) {
+    try {
+        // Test sandbox ad account access
+        const response = await fetch(`https://graph.facebook.com/v18.0/${sandboxAdAccountId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            return {
+                success: false,
+                error: (error.error && error.error.message) || 'Failed to access sandbox ad account'
+            };
+        }
+
+        const data = await response.json();
+        return {
+            success: true,
+            data: {
+                id: data.id,
+                name: data.name || 'Sandbox Ad Account',
+                status: data.account_status || 'active',
+                currency: data.currency || 'USD',
+                timezone: data.timezone_name || 'UTC'
             }
         };
     } catch (error) {
