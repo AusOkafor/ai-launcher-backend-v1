@@ -352,14 +352,13 @@ async function handleMetaConnect(req, res) {
             });
         }
 
-        // Test sandbox ad account access
+        // Test sandbox ad account access (optional for now)
         const sandboxInfo = await testMetaSandboxAccount(accessToken, sandboxAdAccountId);
 
+        // If sandbox test fails, log the error but don't fail the connection
         if (!sandboxInfo.success) {
-            return res.status(400).json({
-                success: false,
-                error: { message: 'Failed to access sandbox ad account', details: sandboxInfo.error }
-            });
+            console.warn('Sandbox account test failed:', sandboxInfo.error);
+            // Continue with connection but mark sandbox as unavailable
         }
 
         // Store the connection in database
@@ -376,7 +375,8 @@ async function handleMetaConnect(req, res) {
                 accountInfo: {
                     ...accountInfo.data,
                     sandboxAdAccountId: sandboxAdAccountId,
-                    sandboxInfo: sandboxInfo.data
+                    sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
+                    sandboxAvailable: sandboxInfo.success
                 },
                 isActive: true,
                 lastConnected: new Date()
@@ -388,7 +388,8 @@ async function handleMetaConnect(req, res) {
                 accountInfo: {
                     ...accountInfo.data,
                     sandboxAdAccountId: sandboxAdAccountId,
-                    sandboxInfo: sandboxInfo.data
+                    sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
+                    sandboxAvailable: sandboxInfo.success
                 },
                 isActive: true,
                 lastConnected: new Date(),
@@ -943,24 +944,19 @@ async function handleGetAllAccounts(req, res) {
 
         await localPrisma.$disconnect();
 
-        const accountsByPlatform = connections.reduce((acc, conn) => {
-            if (!acc[conn.platform]) {
-                acc[conn.platform] = [];
-            }
-            acc[conn.platform].push({
-                id: conn.id,
-                accountId: conn.accountId,
-                accountName: (conn.accountInfo && conn.accountInfo.name) || 'Unknown',
-                isActive: conn.isActive,
-                lastConnected: conn.lastConnected
-            });
-            return acc;
-        }, {});
+        const accounts = connections.map(conn => ({
+            id: conn.id,
+            platform: conn.platform,
+            accountId: conn.accountId,
+            accountInfo: conn.accountInfo,
+            isActive: conn.isActive,
+            lastConnected: conn.lastConnected
+        }));
 
         return res.status(200).json({
             success: true,
             data: {
-                accounts: accountsByPlatform
+                accounts: accounts
             }
         });
 
