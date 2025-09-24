@@ -332,18 +332,18 @@ async function handleAdAccounts(req, res, pathSegments) {
 // Meta Integration Handlers
 async function handleMetaConnect(req, res) {
     try {
-        const { accessToken, adAccountId } = req.body;
+        const { appId, accessToken } = req.body;
 
         // Validate required fields
-        if (!accessToken || !adAccountId) {
+        if (!accessToken || !appId) {
             return res.status(400).json({
                 success: false,
-                error: { message: 'Access token and ad account ID are required' }
+                error: { message: 'App ID and access token are required' }
             });
         }
 
-        // Test the connection by fetching account info
-        const accountInfo = await testMetaConnection(accessToken, adAccountId);
+        // Test the connection by fetching app info
+        const accountInfo = await testMetaConnection(accessToken, appId);
 
         if (!accountInfo.success) {
             return res.status(400).json({
@@ -358,7 +358,7 @@ async function handleMetaConnect(req, res) {
             where: {
                 platform_accountId: {
                     platform: 'meta',
-                    accountId: adAccountId
+                    accountId: appId
                 }
             },
             update: {
@@ -369,7 +369,7 @@ async function handleMetaConnect(req, res) {
             },
             create: {
                 platform: 'meta',
-                accountId: adAccountId,
+                accountId: appId,
                 accessToken: accessToken,
                 accountInfo: accountInfo.data,
                 isActive: true,
@@ -956,10 +956,35 @@ async function handleGetAllAccounts(req, res) {
 }
 
 // Platform-specific API functions
-async function testMetaConnection(accessToken, adAccountId) {
+async function testMetaConnection(accessToken, appId) {
     try {
-        const metaService = new MetaAPIService(accessToken);
-        return await metaService.testConnection(adAccountId);
+        // Test connection by fetching app info instead of ad account
+        const response = await fetch(`https://graph.facebook.com/v18.0/${appId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            return {
+                success: false,
+                error: (error.error && error.error.message) || 'Failed to connect to Meta app'
+            };
+        }
+
+        const data = await response.json();
+        return {
+            success: true,
+            data: {
+                id: data.id,
+                name: data.name || 'Meta App',
+                status: 'active',
+                type: 'app'
+            }
+        };
     } catch (error) {
         return {
             success: false,
