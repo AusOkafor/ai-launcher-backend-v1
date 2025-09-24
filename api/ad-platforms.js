@@ -333,15 +333,15 @@ async function handleAdAccounts(req, res, pathSegments) {
 async function handleMetaConnect(req, res) {
     try {
         console.log('Meta connect request received');
-        const { appId, accessToken, sandboxAdAccountId } = req.body;
-        console.log('Request body:', { appId, hasAccessToken: !!accessToken, sandboxAdAccountId });
+        const { appId, appSecret, accessToken, sandboxAdAccountId } = req.body;
+        console.log('Request body:', { appId, hasAppSecret: !!appSecret, hasAccessToken: !!accessToken, sandboxAdAccountId });
 
         // Validate required fields
-        if (!accessToken || !appId || !sandboxAdAccountId) {
+        if (!accessToken || !appId || !appSecret || !sandboxAdAccountId) {
             console.log('Validation failed - missing required fields');
             return res.status(400).json({
                 success: false,
-                error: { message: 'App ID, access token, and sandbox ad account ID are required' }
+                error: { message: 'App ID, App Secret, access token, and sandbox ad account ID are required' }
             });
         }
 
@@ -381,6 +381,7 @@ async function handleMetaConnect(req, res) {
                 },
                 update: {
                     accessToken: accessToken,
+                    appSecret: appSecret,
                     accountInfo: {
                         ...accountInfo.data,
                         sandboxAdAccountId: sandboxAdAccountId,
@@ -394,6 +395,7 @@ async function handleMetaConnect(req, res) {
                     platform: 'meta',
                     accountId: appId,
                     accessToken: accessToken,
+                    appSecret: appSecret,
                     accountInfo: {
                         ...accountInfo.data,
                         sandboxAdAccountId: sandboxAdAccountId,
