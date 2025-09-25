@@ -1534,7 +1534,6 @@ async function handleMetaTest(req, res) {
         console.log('Testing Meta connection...');
 
         // Get the Meta connection from database
-        const { PrismaClient } = require('@prisma/client');
         const localPrisma = new PrismaClient();
 
         const connection = await localPrisma.adPlatformConnection.findFirst({
