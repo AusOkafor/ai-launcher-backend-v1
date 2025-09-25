@@ -1585,20 +1585,20 @@ async function handleMetaTest(req, res) {
                 connection: {
                     id: connection.id,
                     appId: connection.accountId,
-                    appName: connection.accountInfo ? .name || 'Unknown',
-                    status: connection.accountInfo ? .status || 'Unknown',
+                    appName: (connection.accountInfo && connection.accountInfo.name) || 'Unknown',
+                    status: (connection.accountInfo && connection.accountInfo.status) || 'Unknown',
                     lastConnected: connection.lastConnected
                 },
                 tests: {
                     appAccess: appTest,
                     sandboxAccess: sandboxTest,
                     adAccounts: adAccounts ? {
-                        count: adAccounts.data ? .length || 0,
-                        accounts: adAccounts.data ? .map(acc => ({
+                        count: (adAccounts.data && adAccounts.data.length) || 0,
+                        accounts: (adAccounts.data && adAccounts.data.map(acc => ({
                             id: acc.id,
                             name: acc.name,
                             status: acc.account_status
-                        })) || []
+                        }))) || []
                     } : null
                 }
             }
