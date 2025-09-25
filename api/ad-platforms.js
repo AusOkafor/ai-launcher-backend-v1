@@ -88,6 +88,11 @@ export default async function handler(req, res) {
             return handleAdAccounts(req, res, pathSegments);
         }
 
+        // Handle disconnect endpoints (e.g., meta/disconnect)
+        if (pathSegments.length === 2 && pathSegments[1] === 'disconnect') {
+            return handleDisconnectPlatform(req, res, pathSegments[0]);
+        }
+
         // Default test endpoint
         return res.status(200).json({
             success: true,
@@ -1453,4 +1458,54 @@ async function handleMockAccounts(req, res) {
             totalConnections: Object.values(mockAccounts).flat().length
         }
     });
+}
+
+// Handle platform disconnect
+async function handleDisconnectPlatform(req, res, platform) {
+    console.log(`Disconnect ${platform} endpoint called`);
+    
+    if (req.method !== 'POST') {
+        return res.status(405).json({
+            success: false,
+            error: { message: 'Method not allowed' }
+        });
+    }
+
+    try {
+        const { accountId } = req.body;
+        
+        if (!accountId) {
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Account ID is required' }
+            });
+        }
+
+        console.log(`Disconnecting ${platform} account:`, accountId);
+
+        // In a real implementation, you would:
+        // 1. Revoke the access token with the platform
+        // 2. Delete the connection from database
+        // 3. Clean up any associated data
+
+        // For now, just return success
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: `${platform} account disconnected successfully`,
+                platform: platform,
+                accountId: accountId
+            }
+        });
+
+    } catch (error) {
+        console.error(`Error disconnecting ${platform}:`, error);
+        return res.status(500).json({
+            success: false,
+            error: { 
+                message: `Failed to disconnect ${platform} account`,
+                details: error.message 
+            }
+        });
+    }
 }
