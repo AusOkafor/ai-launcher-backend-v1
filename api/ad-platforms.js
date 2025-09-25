@@ -93,6 +93,10 @@ export default async function handler(req, res) {
             return handleAdAccounts(req, res, pathSegments);
         }
 
+        if (pathSegments[0] === 'test') {
+            return handleTestEndpoints(req, res, pathSegments);
+        }
+
         // Default test endpoint
         return res.status(200).json({
             success: true,
@@ -1504,6 +1508,108 @@ async function handleDisconnectPlatform(req, res, platform) {
             success: false,
             error: {
                 message: `Failed to disconnect ${platform} account`,
+                details: error.message
+            }
+        });
+    }
+}
+
+// Handle test endpoints
+async function handleTestEndpoints(req, res, pathSegments) {
+    console.log('Test endpoint called:', pathSegments);
+
+    if (pathSegments[1] === 'meta') {
+        return handleMetaTest(req, res);
+    }
+
+    return res.status(404).json({
+        success: false,
+        error: { message: 'Test endpoint not found' }
+    });
+}
+
+// Test Meta connection and API access
+async function handleMetaTest(req, res) {
+    try {
+        console.log('Testing Meta connection...');
+
+        // Get the Meta connection from database
+        const { PrismaClient } = require('@prisma/client');
+        const localPrisma = new PrismaClient();
+
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: {
+                platform: 'meta',
+                isActive: true
+            }
+        });
+
+        if (!connection) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Found Meta connection:', connection.id);
+
+        // Test 1: Verify app access
+        const appTest = await testMetaConnection(connection.accessToken, connection.accountId);
+
+        // Test 2: Test sandbox account access (if available)
+        let sandboxTest = null;
+        if (connection.accountInfo && connection.accountInfo.sandboxAdAccountId) {
+            sandboxTest = await testMetaSandboxAccount(connection.accessToken, connection.accountInfo.sandboxAdAccountId);
+        }
+
+        // Test 3: Get ad accounts
+        const adAccountsResponse = await fetch(`https://graph.facebook.com/v18.0/me/adaccounts`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${connection.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        let adAccounts = null;
+        if (adAccountsResponse.ok) {
+            adAccounts = await adAccountsResponse.json();
+        }
+
+        await localPrisma.$disconnect();
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: 'Meta connection test completed',
+                connection: {
+                    id: connection.id,
+                    appId: connection.accountId,
+                    appName: connection.accountInfo ? .name || 'Unknown',
+                    status: connection.accountInfo ? .status || 'Unknown',
+                    lastConnected: connection.lastConnected
+                },
+                tests: {
+                    appAccess: appTest,
+                    sandboxAccess: sandboxTest,
+                    adAccounts: adAccounts ? {
+                        count: adAccounts.data ? .length || 0,
+                        accounts: adAccounts.data ? .map(acc => ({
+                            id: acc.id,
+                            name: acc.name,
+                            status: acc.account_status
+                        })) || []
+                    } : null
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error testing Meta connection:', error);
+        return res.status(500).json({
+            success: false,
+            error: {
+                message: 'Failed to test Meta connection',
                 details: error.message
             }
         });
