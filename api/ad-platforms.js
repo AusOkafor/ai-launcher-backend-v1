@@ -1463,7 +1463,7 @@ async function handleMockAccounts(req, res) {
 // Handle platform disconnect
 async function handleDisconnectPlatform(req, res, platform) {
     console.log(`Disconnect ${platform} endpoint called`);
-    
+
     if (req.method !== 'POST') {
         return res.status(405).json({
             success: false,
@@ -1473,7 +1473,7 @@ async function handleDisconnectPlatform(req, res, platform) {
 
     try {
         const { accountId } = req.body;
-        
+
         if (!accountId) {
             return res.status(400).json({
                 success: false,
@@ -1502,9 +1502,9 @@ async function handleDisconnectPlatform(req, res, platform) {
         console.error(`Error disconnecting ${platform}:`, error);
         return res.status(500).json({
             success: false,
-            error: { 
+            error: {
                 message: `Failed to disconnect ${platform} account`,
-                details: error.message 
+                details: error.message
             }
         });
     }
