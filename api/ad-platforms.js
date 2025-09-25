@@ -59,6 +59,11 @@ export default async function handler(req, res) {
             return handleMockEndpoints(req, res, pathSegments);
         }
 
+        // Handle disconnect endpoints FIRST (e.g., meta/disconnect)
+        if (pathSegments.length === 2 && pathSegments[1] === 'disconnect') {
+            return handleDisconnectPlatform(req, res, pathSegments[0]);
+        }
+
         // Route based on path segments
         if (pathSegments[0] === 'meta') {
             return handleMetaIntegration(req, res, pathSegments);
@@ -86,11 +91,6 @@ export default async function handler(req, res) {
 
         if (pathSegments[0] === 'accounts') {
             return handleAdAccounts(req, res, pathSegments);
-        }
-
-        // Handle disconnect endpoints (e.g., meta/disconnect)
-        if (pathSegments.length === 2 && pathSegments[1] === 'disconnect') {
-            return handleDisconnectPlatform(req, res, pathSegments[0]);
         }
 
         // Default test endpoint
