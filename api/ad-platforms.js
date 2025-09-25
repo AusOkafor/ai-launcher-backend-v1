@@ -97,6 +97,10 @@ export default async function handler(req, res) {
             return handleTestEndpoints(req, res, pathSegments);
         }
 
+        if (pathSegments[0] === 'real-performance') {
+            return handleRealPerformanceData(req, res, pathSegments);
+        }
+
         // Default test endpoint
         return res.status(200).json({
             success: true,
@@ -1609,6 +1613,157 @@ async function handleMetaTest(req, res) {
             success: false,
             error: {
                 message: 'Failed to test Meta connection',
+                details: error.message
+            }
+        });
+    }
+}
+
+// Handle real performance data from connected platforms
+async function handleRealPerformanceData(req, res, pathSegments) {
+    console.log('Real performance endpoint called:', pathSegments);
+
+    if (pathSegments[1] === 'meta') {
+        return handleMetaRealPerformance(req, res);
+    }
+
+    return res.status(404).json({
+        success: false,
+        error: { message: 'Real performance endpoint not found' }
+    });
+}
+
+// Get real Meta performance data
+async function handleMetaRealPerformance(req, res) {
+    try {
+        console.log('Fetching real Meta performance data...');
+
+        // Get the Meta connection from database
+        const localPrisma = new PrismaClient();
+
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: {
+                platform: 'meta',
+                isActive: true
+            }
+        });
+
+        if (!connection) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Found Meta connection:', connection.id);
+
+        // Get ad accounts first
+        const adAccountsResponse = await fetch(`https://graph.facebook.com/v18.0/me/adaccounts`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${connection.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!adAccountsResponse.ok) {
+            throw new Error('Failed to fetch ad accounts');
+        }
+
+        const adAccounts = await adAccountsResponse.json();
+        const adAccountId = adAccounts.data && adAccounts.data[0] ? adAccounts.data[0].id : null;
+
+        if (!adAccountId) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No ad accounts found' }
+            });
+        }
+
+        console.log('Using ad account:', adAccountId);
+
+        // Get campaigns from the ad account
+        const campaignsResponse = await fetch(`https://graph.facebook.com/v18.0/${adAccountId}/campaigns`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${connection.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        let campaigns = [];
+        if (campaignsResponse.ok) {
+            const campaignsData = await campaignsResponse.json();
+            campaigns = campaignsData.data || [];
+        }
+
+        // Get insights for the ad account (last 7 days)
+        const insightsResponse = await fetch(`https://graph.facebook.com/v18.0/${adAccountId}/insights?date_preset=last_7d&fields=impressions,clicks,spend,ctr,cpc,cpm,reach,frequency`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${connection.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        let insights = null;
+        if (insightsResponse.ok) {
+            const insightsData = await insightsResponse.json();
+            insights = insightsData.data && insightsData.data[0] ? insightsData.data[0] : null;
+        }
+
+        await localPrisma.$disconnect();
+
+        // Format the response
+        const performanceData = {
+            platform: 'meta',
+            adAccountId: adAccountId,
+            campaigns: {
+                total: campaigns.length,
+                active: campaigns.filter(c => c.status === 'ACTIVE').length,
+                list: campaigns.slice(0, 5).map(campaign => ({
+                    id: campaign.id,
+                    name: campaign.name,
+                    status: campaign.status,
+                    objective: campaign.objective
+                }))
+            },
+            insights: insights ? {
+                impressions: parseInt(insights.impressions) || 0,
+                clicks: parseInt(insights.clicks) || 0,
+                spend: parseFloat(insights.spend) || 0,
+                ctr: parseFloat(insights.ctr) || 0,
+                cpc: parseFloat(insights.cpc) || 0,
+                cpm: parseFloat(insights.cpm) || 0,
+                reach: parseInt(insights.reach) || 0,
+                frequency: parseFloat(insights.frequency) || 0
+            } : {
+                impressions: 0,
+                clicks: 0,
+                spend: 0,
+                ctr: 0,
+                cpc: 0,
+                cpm: 0,
+                reach: 0,
+                frequency: 0
+            },
+            lastUpdated: new Date().toISOString()
+        };
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: 'Real Meta performance data retrieved',
+                performance: performanceData
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching real Meta performance:', error);
+        return res.status(500).json({
+            success: false,
+            error: {
+                message: 'Failed to fetch real Meta performance data',
                 details: error.message
             }
         });
