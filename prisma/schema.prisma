@@ -1108,6 +1108,7 @@ model AdPlatformConnection {
   platform      String   // "meta", "google", "tiktok", "pinterest"
   accountId     String   // Platform-specific account ID
   accessToken   String   // OAuth access token
+  appSecret     String?  // App secret for Meta/other platforms
   refreshToken  String?  // OAuth refresh token (for Google)
   accountInfo   Json?    // Account details from platform
   isActive      Boolean  @default(true)
