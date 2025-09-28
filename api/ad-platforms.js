@@ -847,19 +847,29 @@ async function handlePublishCreative(req, res, creativeId) {
         // Publish to each requested platform
         for (const platform of platforms) {
             try {
+                // Get platform connection
+                const connection = await localPrisma.adPlatformConnection.findFirst({
+                    where: { platform: platform, isActive: true }
+                });
+
+                if (!connection) {
+                    errors.push({ platform, error: `No active ${platform} connection found` });
+                    continue;
+                }
+
                 let result;
                 switch (platform) {
                     case 'meta':
-                        result = await publishToMeta(creative, null, campaignSettings);
+                        result = await publishToMeta(creative, connection, campaignSettings);
                         break;
                     case 'google':
-                        result = await publishToGoogle(creative, null, campaignSettings);
+                        result = await publishToGoogle(creative, connection, campaignSettings);
                         break;
                     case 'tiktok':
-                        result = await publishToTikTok(creative, null, campaignSettings);
+                        result = await publishToTikTok(creative, connection, campaignSettings);
                         break;
                     case 'pinterest':
-                        result = await publishToPinterest(creative, null, campaignSettings);
+                        result = await publishToPinterest(creative, connection, campaignSettings);
                         break;
                     default:
                         throw new Error(`Unsupported platform: ${platform}`);
@@ -982,6 +992,13 @@ async function handleGetAllAccounts(req, res) {
         });
 
         console.log(`Found ${connections.length} connections`);
+        console.log('Connection details:', connections.map(conn => ({
+            id: conn.id,
+            platform: conn.platform,
+            accountId: conn.accountId,
+            isActive: conn.isActive,
+            workspaceId: conn.workspaceId
+        })));
         await localPrisma.$disconnect();
 
         const accounts = connections.map(conn => ({
