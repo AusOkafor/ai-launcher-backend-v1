@@ -1121,7 +1121,8 @@ async function publishToMeta(creative, connection, campaignSettings) {
             id: connection.id,
             platform: connection.platform,
             accountId: connection.accountId,
-            accountInfo: connection.accountInfo
+            accountInfo: connection.accountInfo,
+            accessTokenLength: connection.accessToken ? connection.accessToken.length : 0
         }); // Debug log
 
         const metaService = new MetaAPIService(connection.accessToken);
