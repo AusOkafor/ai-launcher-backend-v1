@@ -1993,13 +1993,13 @@ async function handleRefreshMetaToken(req, res) {
 
         console.log('Found Meta connection:', connection.id);
 
-        // Check if we have environment variables
-        if (!process.env.META_APP_ID || !process.env.META_APP_SECRET) {
+        // Check if we have stored credentials in the connection
+        if (!connection.appSecret && !process.env.META_APP_SECRET) {
             return res.status(400).json({
                 success: false,
                 error: {
-                    message: 'Meta app credentials not configured',
-                    details: 'META_APP_ID and META_APP_SECRET environment variables are required'
+                    message: 'Meta app credentials not found',
+                    details: 'App secret not found in connection or environment variables'
                 }
             });
         }
