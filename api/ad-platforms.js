@@ -1173,6 +1173,7 @@ async function publishToMeta(creative, connection, campaignSettings) {
 
         // Validate token and attempt refresh if needed
         const tokenValidation = await metaService.validateAndRefreshToken();
+        console.log('Token validation result:', tokenValidation);
 
         if (!tokenValidation.success) {
             if (tokenValidation.needsRefresh) {
@@ -1246,6 +1247,8 @@ async function publishToMeta(creative, connection, campaignSettings) {
             }
         }
 
+        console.log('Token validation passed, proceeding with publishing...');
+        console.log('Using token for publishing:', metaService.accessToken.substring(0, 20) + '...');
         return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
     } catch (error) {
         console.error('Meta publishing error:', error); // Debug log

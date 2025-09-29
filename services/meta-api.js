@@ -19,6 +19,7 @@ class MetaAPIService {
     async validateAndRefreshToken() {
         try {
             // Test the current token by making a simple API call
+            // For app access tokens, we should test with the app's own info
             const response = await fetch(`${META_BASE_URL}/me`, {
                 method: 'GET',
                 headers: {
@@ -32,14 +33,17 @@ class MetaAPIService {
             }
 
             const error = await response.json();
-            if (error.error && error.error.code === 190) {
+            console.log('Token validation response:', error);
+            
+            if (error.error && (error.error.code === 190 || error.error.code === 102)) {
                 // Token expired or invalid
-                console.log('Meta token expired, attempting refresh...');
+                console.log('Meta token expired or invalid, attempting refresh...');
                 return { success: false, needsRefresh: true, error: 'Token expired' };
             }
 
             return { success: false, needsRefresh: false, error: (error.error && error.error.message) || 'Token validation failed' };
         } catch (error) {
+            console.log('Token validation error:', error);
             return { success: false, needsRefresh: false, error: error.message };
         }
     }
