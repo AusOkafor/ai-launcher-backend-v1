@@ -7,8 +7,90 @@ const META_API_VERSION = 'v18.0';
 const META_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
 class MetaAPIService {
-    constructor(accessToken) {
+    constructor(accessToken, appSecret = null) {
         this.accessToken = accessToken;
+        this.appSecret = appSecret;
+    }
+
+    /**
+     * Check if token is expired and attempt to refresh if possible
+     */
+    async validateAndRefreshToken() {
+        try {
+            // Test the current token by making a simple API call
+            const response = await fetch(`${META_BASE_URL}/me`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                return { success: true, needsRefresh: false };
+            }
+
+            const error = await response.json();
+            if (error.error && error.error.code === 190) {
+                // Token expired or invalid
+                console.log('Meta token expired, attempting refresh...');
+                return { success: false, needsRefresh: true, error: 'Token expired' };
+            }
+
+            return { success: false, needsRefresh: false, error: error.error ? .message || 'Token validation failed' };
+        } catch (error) {
+            return { success: false, needsRefresh: false, error: error.message };
+        }
+    }
+
+    /**
+     * Refresh access token using app secret (for app access tokens)
+     */
+    async refreshToken() {
+        if (!this.appSecret) {
+            return {
+                success: false,
+                error: 'App secret required for token refresh'
+            };
+        }
+
+        try {
+            const response = await fetch(`${META_BASE_URL}/oauth/access_token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    grant_type: 'client_credentials',
+                    client_id: process.env.META_APP_ID,
+                    client_secret: this.appSecret
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                return {
+                    success: false,
+                    error: error.error ? .message || 'Failed to refresh token'
+                };
+            }
+
+            const data = await response.json();
+            this.accessToken = data.access_token;
+
+            return {
+                success: true,
+                data: {
+                    accessToken: data.access_token,
+                    expiresIn: data.expires_in
+                }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 
     /**

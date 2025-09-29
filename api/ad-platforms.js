@@ -97,6 +97,10 @@ export default async function handler(req, res) {
             return handleTestEndpoints(req, res, pathSegments);
         }
 
+        if (pathSegments[0] === 'refresh-token') {
+            return handleMetaTokenRefresh(req, res);
+        }
+
         if (pathSegments[0] === 'real-performance') {
             return handleRealPerformanceData(req, res, pathSegments);
         }
@@ -1127,7 +1131,46 @@ async function publishToMeta(creative, connection, campaignSettings) {
             accessTokenLength: connection.accessToken ? connection.accessToken.length : 0
         }); // Debug log
 
-        const metaService = new MetaAPIService(connection.accessToken);
+        const metaService = new MetaAPIService(connection.accessToken, connection.appSecret);
+
+        // Validate token and attempt refresh if needed
+        const tokenValidation = await metaService.validateAndRefreshToken();
+
+        if (!tokenValidation.success) {
+            if (tokenValidation.needsRefresh) {
+                console.log('Attempting to refresh Meta token...');
+                const refreshResult = await metaService.refreshToken();
+
+                if (refreshResult.success) {
+                    console.log('Token refreshed successfully, updating database...');
+                    // Update the connection with new token
+                    const localPrisma = new PrismaClient();
+                    await localPrisma.adPlatformConnection.update({
+                        where: { id: connection.id },
+                        data: {
+                            accessToken: refreshResult.data.accessToken,
+                            lastConnected: new Date()
+                        }
+                    });
+                    await localPrisma.$disconnect();
+
+                    // Retry publishing with new token
+                    return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
+                } else {
+                    console.error('Token refresh failed:', refreshResult.error);
+                    return {
+                        success: false,
+                        error: `Token expired and refresh failed: ${refreshResult.error}. Please reconnect your Meta account.`
+                    };
+                }
+            } else {
+                return {
+                    success: false,
+                    error: `Meta API error: ${tokenValidation.error}`
+                };
+            }
+        }
+
         return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
     } catch (error) {
         console.error('Meta publishing error:', error); // Debug log
@@ -1650,6 +1693,101 @@ async function handleMetaTest(req, res) {
                 details: error.message
             }
         });
+    }
+}
+
+// Test Meta token refresh functionality
+async function handleMetaTokenRefresh(req, res) {
+    try {
+        console.log('Testing Meta token refresh...');
+
+        // Get the Meta connection from database
+        const localPrisma = new PrismaClient();
+
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: {
+                platform: 'meta',
+                isActive: true
+            }
+        });
+
+        if (!connection) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Found Meta connection:', connection.id);
+
+        // Test token validation and refresh
+        const metaService = new MetaAPIService(connection.accessToken, connection.appSecret);
+        const tokenValidation = await metaService.validateAndRefreshToken();
+
+        if (tokenValidation.success) {
+            return res.json({
+                success: true,
+                data: {
+                    message: 'Token is valid, no refresh needed',
+                    tokenValid: true
+                }
+            });
+        }
+
+        if (tokenValidation.needsRefresh) {
+            console.log('Token needs refresh, attempting...');
+            const refreshResult = await metaService.refreshToken();
+
+            if (refreshResult.success) {
+                // Update the connection with new token
+                await localPrisma.adPlatformConnection.update({
+                    where: { id: connection.id },
+                    data: {
+                        accessToken: refreshResult.data.accessToken,
+                        lastConnected: new Date()
+                    }
+                });
+
+                return res.json({
+                    success: true,
+                    data: {
+                        message: 'Token refreshed successfully',
+                        tokenValid: true,
+                        newToken: refreshResult.data.accessToken.substring(0, 20) + '...' // Show partial token for verification
+                    }
+                });
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        message: 'Token refresh failed',
+                        details: refreshResult.error
+                    }
+                });
+            }
+        } else {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    message: 'Token validation failed',
+                    details: tokenValidation.error
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('Error testing Meta token refresh:', error);
+        return res.status(500).json({
+            success: false,
+            error: {
+                message: 'Failed to test token refresh',
+                details: error.message
+            }
+        });
+    } finally {
+        if (localPrisma) {
+            await localPrisma.$disconnect();
+        }
     }
 }
 
