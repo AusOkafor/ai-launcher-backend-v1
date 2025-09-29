@@ -532,6 +532,8 @@ class MetaAPIService {
      */
     async getValidAdAccount(storedAccountId) {
         try {
+            console.log('Attempting to validate account ID:', storedAccountId);
+
             // First try the stored account ID
             const testResponse = await fetch(`${META_BASE_URL}/${storedAccountId}`, {
                 method: 'GET',
@@ -546,10 +548,13 @@ class MetaAPIService {
                 return storedAccountId;
             }
 
-            console.log('Stored account ID failed, fetching available accounts...');
+            const errorData = await testResponse.json();
+            console.log('Stored account ID failed with error:', errorData);
+
+            console.log('Fetching available ad accounts...');
 
             // If stored account doesn't work, get available ad accounts
-            const accountsResponse = await fetch(`${META_BASE_URL}/me/adaccounts`, {
+            const accountsResponse = await fetch(`${META_BASE_URL}/me/adaccounts?fields=id,name,account_status`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${this.accessToken}`,
@@ -558,19 +563,27 @@ class MetaAPIService {
             });
 
             if (!accountsResponse.ok) {
+                const errorData = await accountsResponse.json();
+                console.error('Failed to fetch ad accounts:', errorData);
                 throw new Error('Failed to fetch ad accounts');
             }
 
             const accountsData = await accountsResponse.json();
             const accounts = accountsData.data || [];
+            console.log('Available ad accounts:', accounts);
 
             if (accounts.length === 0) {
                 throw new Error('No ad accounts found');
             }
 
-            // Use the first available account
-            const validAccountId = accounts[0].id;
-            console.log('Using first available account:', validAccountId);
+            // Find an active account
+            const activeAccount = accounts.find(account =>
+                account.account_status === 1 || account.account_status === 'ACTIVE'
+            );
+
+            const validAccountId = activeAccount ? activeAccount.id : accounts[0].id;
+            console.log('Using account:', validAccountId, 'from', accounts.length, 'available accounts');
+
             return validAccountId;
 
         } catch (error) {
