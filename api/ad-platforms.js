@@ -135,6 +135,10 @@ export default async function handler(req, res) {
             return handleRefreshMetaToken(req, res);
         }
 
+        if (pathSegments[0] === 'update-meta-token') {
+            return handleUpdateMetaToken(req, res);
+        }
+
         if (pathSegments[0] === 'real-performance') {
             return handleRealPerformanceData(req, res, pathSegments);
         }
@@ -957,6 +961,71 @@ async function handlePublishCreative(req, res, creativeId) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to publish creative' }
+        });
+    }
+}
+
+// Update Meta Token Handler
+async function handleUpdateMetaToken(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({
+            success: false,
+            error: { message: 'Method not allowed' }
+        });
+    }
+
+    try {
+        const { accessToken } = req.body;
+
+        if (!accessToken) {
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Access token is required' }
+            });
+        }
+
+        console.log('Updating Meta token:', accessToken.substring(0, 20) + '...');
+
+        const localPrisma = new PrismaClient();
+
+        // Find the Meta connection
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: { platform: 'meta', isActive: true }
+        });
+
+        if (!connection) {
+            await localPrisma.$disconnect();
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        // Update the token
+        await localPrisma.adPlatformConnection.update({
+            where: { id: connection.id },
+            data: {
+                accessToken: accessToken,
+                lastConnected: new Date()
+            }
+        });
+
+        await localPrisma.$disconnect();
+
+        return res.json({
+            success: true,
+            data: {
+                message: 'Meta token updated successfully',
+                tokenLength: accessToken.length,
+                lastUpdated: new Date().toISOString()
+            }
+        });
+
+    } catch (error) {
+        console.error('Error updating Meta token:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to update Meta token' }
         });
     }
 }
