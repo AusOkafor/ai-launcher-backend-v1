@@ -34,7 +34,7 @@ class MetaAPIService {
 
             const error = await response.json();
             console.log('Token validation response:', error);
-            
+
             if (error.error && (error.error.code === 190 || error.error.code === 102)) {
                 // Token expired or invalid
                 console.log('Meta token expired or invalid, attempting refresh...');
