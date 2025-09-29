@@ -1117,9 +1117,17 @@ async function testMetaSandboxAccount(accessToken, sandboxAdAccountId) {
 
 async function publishToMeta(creative, connection, campaignSettings) {
     try {
+        console.log('Meta publishing - Connection details:', {
+            id: connection.id,
+            platform: connection.platform,
+            accountId: connection.accountId,
+            accountInfo: connection.accountInfo
+        }); // Debug log
+
         const metaService = new MetaAPIService(connection.accessToken);
         return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
     } catch (error) {
+        console.error('Meta publishing error:', error); // Debug log
         return {
             success: false,
             error: error.message
