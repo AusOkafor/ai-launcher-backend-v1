@@ -22,9 +22,9 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 export default async function handler(req, res) {
-    // Set CORS headers
-    const origin = req.headers.origin || '*';
-    const allowed = [
+    // Enhanced CORS headers - set for all requests
+    const origin = req.headers.origin;
+    const allowedOrigins = [
         'http://localhost:8080',
         'http://localhost:8081',
         'http://localhost:3000',
@@ -32,21 +32,29 @@ export default async function handler(req, res) {
         'https://stratosphere-ecom-ai.vercel.app',
         'https://ai-launcher-frontend.vercel.app'
     ];
-    if (allowed.includes(origin)) {
+
+    // Set CORS headers for all responses
+    if (allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Vary', 'Origin');
     } else {
         res.setHeader('Access-Control-Allow-Origin', '*');
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+    res.setHeader('Vary', 'Origin');
 
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
+        console.log('CORS preflight request handled for origin:', origin);
         res.status(200).end();
         return;
     }
+
+    // Log all requests for debugging
+    console.log(`API request: ${req.method} ${req.url} from origin: ${origin}`);
 
     try {
         const { path } = req.query;
