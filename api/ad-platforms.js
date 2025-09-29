@@ -1175,7 +1175,15 @@ async function publishToMeta(creative, connection, campaignSettings) {
         const tokenValidation = await metaService.validateAndRefreshToken();
         console.log('Token validation result:', tokenValidation);
 
+        // If token validation fails but we can still proceed, try publishing directly
         if (!tokenValidation.success) {
+            console.log('Token validation failed, but attempting to publish anyway...');
+            const directPublishResult = await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
+            if (directPublishResult.success) {
+                console.log('Direct publishing succeeded despite token validation failure');
+                return directPublishResult;
+            }
+
             if (tokenValidation.needsRefresh) {
                 console.log('Attempting to refresh Meta token...');
 
