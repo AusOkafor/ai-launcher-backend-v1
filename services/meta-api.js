@@ -153,6 +153,8 @@ class MetaAPIService {
             }
 
             const appTokenData = await appTokenResponse.json();
+            console.log('App token response:', appTokenData);
+            console.log('New token length:', appTokenData.access_token ? appTokenData.access_token.length : 'undefined');
             this.accessToken = appTokenData.access_token;
 
             return {
