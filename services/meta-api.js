@@ -61,7 +61,22 @@ class MetaAPIService {
         try {
             // Ensure account ID has act_ prefix but don't double it
             const formattedAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
-            console.log('Meta API - createCampaign URL:', `${META_BASE_URL}/${formattedAccountId}/campaigns`); // Debug log
+            console.log('Meta API - createCampaign details:', {
+                originalAccountId: adAccountId,
+                formattedAccountId: formattedAccountId,
+                url: `${META_BASE_URL}/${formattedAccountId}/campaigns`,
+                tokenLength: this.accessToken ? this.accessToken.length : 0
+            }); // Debug log
+
+            const requestBody = {
+                name: campaignData.name,
+                objective: campaignData.objective || 'CONVERSIONS',
+                status: campaignData.status || 'PAUSED',
+                special_ad_categories: campaignData.specialAdCategories || [],
+                ...campaignData
+            };
+
+            console.log('Meta API - createCampaign request body:', requestBody); // Debug log
 
             const response = await fetch(`${META_BASE_URL}/${formattedAccountId}/campaigns`, {
                 method: 'POST',
@@ -69,17 +84,12 @@ class MetaAPIService {
                     'Authorization': `Bearer ${this.accessToken}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    name: campaignData.name,
-                    objective: campaignData.objective || 'CONVERSIONS',
-                    status: campaignData.status || 'PAUSED',
-                    special_ad_categories: campaignData.specialAdCategories || [],
-                    ...campaignData
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
                 const error = await response.json();
+                console.error('Meta API - createCampaign error response:', error); // Debug log
                 return {
                     success: false,
                     error: (error.error && error.error.message) || 'Failed to create campaign'
