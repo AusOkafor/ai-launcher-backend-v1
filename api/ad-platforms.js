@@ -1329,40 +1329,45 @@ async function publishToMeta(creative, connection, campaignSettings) {
         console.log('Using token for publishing:', metaService.accessToken.substring(0, 20) + '...');
         console.log('Using account ID for publishing:', connection.accountId);
 
-        // Proactively convert to app token for longer lifespan
-        console.log('Converting to app access token for longer lifespan...');
-        const convertResult = await metaService.convertToAppToken();
-        if (convertResult.success) {
-            console.log('Successfully converted to app access token, updating database...');
-            // Update the connection with new long-lived token
-            const localPrisma = new PrismaClient();
-            await localPrisma.adPlatformConnection.update({
-                where: { id: connection.id },
-                data: {
-                    accessToken: convertResult.data.accessToken,
-                    lastConnected: new Date()
-                }
-            });
-            await localPrisma.$disconnect();
+        // Check if current token is long enough (USER tokens are usually 200+ chars)
+        if (connection.accessToken.length < 100) {
+            console.log('Current token appears to be invalid/truncated, attempting conversion...');
+            const convertResult = await metaService.convertToAppToken();
+            if (convertResult.success && convertResult.data.accessToken.length > 100) {
+                console.log('Successfully converted to app access token, updating database...');
+                // Update the connection with new long-lived token
+                const localPrisma = new PrismaClient();
+                await localPrisma.adPlatformConnection.update({
+                    where: { id: connection.id },
+                    data: {
+                        accessToken: convertResult.data.accessToken,
+                        lastConnected: new Date()
+                    }
+                });
+                await localPrisma.$disconnect();
 
-            // Create new MetaAPIService with long-lived token
-            const longLivedMetaService = new MetaAPIService(
-                convertResult.data.accessToken,
-                connection.appSecret,
-                (connection.accountInfo && connection.accountInfo.appId)
-            );
+                // Create new MetaAPIService with long-lived token
+                const longLivedMetaService = new MetaAPIService(
+                    convertResult.data.accessToken,
+                    connection.appSecret,
+                    (connection.accountInfo && connection.accountInfo.appId)
+                );
 
-            const validAccountId = await longLivedMetaService.getValidAdAccount(connection.accountId);
-            console.log('Valid account ID:', validAccountId);
+                const validAccountId = await longLivedMetaService.getValidAdAccount(connection.accountId);
+                console.log('Valid account ID:', validAccountId);
 
-            return await longLivedMetaService.publishCampaign(validAccountId, creative, campaignSettings);
+                return await longLivedMetaService.publishCampaign(validAccountId, creative, campaignSettings);
+            } else {
+                console.log('Token conversion failed or returned invalid token, proceeding with current token...');
+            }
         } else {
-            console.log('App token conversion failed, proceeding with current token...');
-            const validAccountId = await metaService.getValidAdAccount(connection.accountId);
-            console.log('Valid account ID:', validAccountId);
-
-            return await metaService.publishCampaign(validAccountId, creative, campaignSettings);
+            console.log('Current token appears valid, proceeding with publishing...');
         }
+
+        const validAccountId = await metaService.getValidAdAccount(connection.accountId);
+        console.log('Valid account ID:', validAccountId);
+
+        return await metaService.publishCampaign(validAccountId, creative, campaignSettings);
     } catch (error) {
         console.error('Meta publishing error:', error); // Debug log
         return {

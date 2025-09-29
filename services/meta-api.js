@@ -155,6 +155,16 @@ class MetaAPIService {
             const appTokenData = await appTokenResponse.json();
             console.log('App token response:', appTokenData);
             console.log('New token length:', appTokenData.access_token ? appTokenData.access_token.length : 'undefined');
+            console.log('Full token preview:', appTokenData.access_token ? appTokenData.access_token.substring(0, 50) + '...' : 'undefined');
+
+            if (!appTokenData.access_token || appTokenData.access_token.length < 100) {
+                console.error('Token conversion returned invalid/short token:', appTokenData);
+                return {
+                    success: false,
+                    error: 'Token conversion returned invalid token'
+                };
+            }
+
             this.accessToken = appTokenData.access_token;
 
             return {
