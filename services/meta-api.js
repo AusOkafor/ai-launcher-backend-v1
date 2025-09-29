@@ -59,7 +59,11 @@ class MetaAPIService {
      */
     async createCampaign(adAccountId, campaignData) {
         try {
-            const response = await fetch(`${META_BASE_URL}/act_${adAccountId}/campaigns`, {
+            // Ensure account ID has act_ prefix but don't double it
+            const formattedAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+            console.log('Meta API - createCampaign URL:', `${META_BASE_URL}/${formattedAccountId}/campaigns`); // Debug log
+
+            const response = await fetch(`${META_BASE_URL}/${formattedAccountId}/campaigns`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.accessToken}`,
@@ -148,7 +152,9 @@ class MetaAPIService {
      */
     async createAdCreative(adAccountId, creativeData) {
         try {
-            const response = await fetch(`${META_BASE_URL}/act_${adAccountId}/adcreatives`, {
+            // Ensure account ID has act_ prefix but don't double it
+            const formattedAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+            const response = await fetch(`${META_BASE_URL}/${formattedAccountId}/adcreatives`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.accessToken}`,
@@ -233,6 +239,21 @@ class MetaAPIService {
      */
     async publishCampaign(adAccountId, creative, campaignSettings) {
         try {
+            console.log('Meta API - publishCampaign called with:', {
+                adAccountId,
+                creativeId: creative.id,
+                campaignSettings,
+                creativeData: {
+                    id: creative.id,
+                    platform: creative.platform,
+                    outputs: creative.outputs,
+                    launch: creative.launch ? {
+                        id: creative.launch.id,
+                        product: creative.launch.product
+                    } : null
+                }
+            }); // Debug log
+
             // 1. Create campaign
             const campaignResult = await this.createCampaign(adAccountId, {
                 name: `${creative.launch.product.title} - ${creative.platform.toUpperCase()} Campaign`,
@@ -261,6 +282,8 @@ class MetaAPIService {
             }
 
             // 3. Create ad creative
+            console.log('Using page ID for ad creative:', campaignSettings.pageId); // Debug log
+
             const creativeResult = await this.createAdCreative(adAccountId, {
                 name: `${creative.launch.product.title} - Creative`,
                 object_story_spec: {
