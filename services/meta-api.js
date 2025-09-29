@@ -76,9 +76,9 @@ class MetaAPIService {
 
             const requestBody = {
                 name: campaignData.name,
-                objective: campaignData.objective || 'CONVERSIONS',
+                objective: campaignData.objective || 'OUTCOME_TRAFFIC', // Updated to use new objective names
                 status: campaignData.status || 'PAUSED',
-                special_ad_categories: campaignData.specialAdCategories || [],
+                special_ad_categories: [], // Required parameter for Meta API
                 ...campaignData
             };
 
@@ -278,7 +278,7 @@ class MetaAPIService {
             // 1. Create campaign
             const campaignResult = await this.createCampaign(adAccountId, {
                 name: `${creative.launch.product.title} - ${creative.platform.toUpperCase()} Campaign`,
-                objective: 'CONVERSIONS',
+                objective: 'OUTCOME_TRAFFIC', // Updated to use new objective names
                 status: 'PAUSED' // Start paused for review
             });
 
