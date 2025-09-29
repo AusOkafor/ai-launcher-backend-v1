@@ -94,6 +94,58 @@ class MetaAPIService {
     }
 
     /**
+     * Convert user access token to app access token (more stable)
+     */
+    async convertToAppToken() {
+        if (!this.appSecret) {
+            return {
+                success: false,
+                error: 'App secret required for token conversion'
+            };
+        }
+
+        try {
+            // Get app access token directly (most stable option)
+            const appTokenResponse = await fetch(`${META_BASE_URL}/oauth/access_token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams({
+                    grant_type: 'client_credentials',
+                    client_id: process.env.META_APP_ID,
+                    client_secret: this.appSecret
+                })
+            });
+
+            if (!appTokenResponse.ok) {
+                const error = await appTokenResponse.json();
+                return {
+                    success: false,
+                    error: error.error ? .message || 'Failed to get app access token'
+                };
+            }
+
+            const appTokenData = await appTokenResponse.json();
+            this.accessToken = appTokenData.access_token;
+
+            return {
+                success: true,
+                data: {
+                    accessToken: appTokenData.access_token,
+                    expiresIn: appTokenData.expires_in,
+                    tokenType: 'app_access_token'
+                }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
      * Test connection to Meta Marketing API
      */
     async testConnection(adAccountId) {

@@ -101,6 +101,10 @@ export default async function handler(req, res) {
             return handleMetaTokenRefresh(req, res);
         }
 
+        if (pathSegments[0] === 'diagnose-token') {
+            return handleMetaTokenDiagnosis(req, res);
+        }
+
         if (pathSegments[0] === 'real-performance') {
             return handleRealPerformanceData(req, res, pathSegments);
         }
@@ -1139,16 +1143,19 @@ async function publishToMeta(creative, connection, campaignSettings) {
         if (!tokenValidation.success) {
             if (tokenValidation.needsRefresh) {
                 console.log('Attempting to refresh Meta token...');
-                const refreshResult = await metaService.refreshToken();
 
-                if (refreshResult.success) {
-                    console.log('Token refreshed successfully, updating database...');
+                // First try to convert to app access token (more stable)
+                console.log('Attempting to convert to app access token...');
+                const convertResult = await metaService.convertToAppToken();
+
+                if (convertResult.success) {
+                    console.log('Converted to app access token successfully, updating database...');
                     // Update the connection with new token
                     const localPrisma = new PrismaClient();
                     await localPrisma.adPlatformConnection.update({
                         where: { id: connection.id },
                         data: {
-                            accessToken: refreshResult.data.accessToken,
+                            accessToken: convertResult.data.accessToken,
                             lastConnected: new Date()
                         }
                     });
@@ -1157,11 +1164,31 @@ async function publishToMeta(creative, connection, campaignSettings) {
                     // Retry publishing with new token
                     return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
                 } else {
-                    console.error('Token refresh failed:', refreshResult.error);
-                    return {
-                        success: false,
-                        error: `Token expired and refresh failed: ${refreshResult.error}. Please reconnect your Meta account.`
-                    };
+                    console.log('App token conversion failed, trying regular refresh...');
+                    const refreshResult = await metaService.refreshToken();
+
+                    if (refreshResult.success) {
+                        console.log('Token refreshed successfully, updating database...');
+                        // Update the connection with new token
+                        const localPrisma = new PrismaClient();
+                        await localPrisma.adPlatformConnection.update({
+                            where: { id: connection.id },
+                            data: {
+                                accessToken: refreshResult.data.accessToken,
+                                lastConnected: new Date()
+                            }
+                        });
+                        await localPrisma.$disconnect();
+
+                        // Retry publishing with new token
+                        return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
+                    } else {
+                        console.error('Both app token conversion and refresh failed:', convertResult.error, refreshResult.error);
+                        return {
+                            success: false,
+                            error: `Token expired and all refresh attempts failed. Please reconnect your Meta account. Conversion error: ${convertResult.error}, Refresh error: ${refreshResult.error}`
+                        };
+                    }
                 }
             } else {
                 return {
@@ -1788,6 +1815,111 @@ async function handleMetaTokenRefresh(req, res) {
         if (localPrisma) {
             await localPrisma.$disconnect();
         }
+    }
+}
+
+// Diagnose Meta token issues
+async function handleMetaTokenDiagnosis(req, res) {
+    try {
+        console.log('Diagnosing Meta token...');
+
+        // Get the Meta connection from database
+        const localPrisma = new PrismaClient();
+
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: {
+                platform: 'meta',
+                isActive: true
+            }
+        });
+
+        if (!connection) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Found Meta connection:', connection.id);
+
+        // Test current token
+        const metaService = new MetaAPIService(connection.accessToken, connection.appSecret);
+        const tokenValidation = await metaService.validateAndRefreshToken();
+
+        // Get token info from Meta
+        let tokenInfo = null;
+        try {
+            const tokenInfoResponse = await fetch(`https://graph.facebook.com/v18.0/debug_token?input_token=${connection.accessToken}&access_token=${connection.accessToken}`);
+            if (tokenInfoResponse.ok) {
+                tokenInfo = await tokenInfoResponse.json();
+            }
+        } catch (error) {
+            console.log('Could not get token info:', error.message);
+        }
+
+        // Try to convert to app token
+        let appTokenResult = null;
+        try {
+            appTokenResult = await metaService.convertToAppToken();
+        } catch (error) {
+            console.log('App token conversion failed:', error.message);
+        }
+
+        await localPrisma.$disconnect();
+
+        return res.json({
+            success: true,
+            data: {
+                message: 'Meta token diagnosis completed',
+                connection: {
+                    id: connection.id,
+                    lastConnected: connection.lastConnected,
+                    hasAppSecret: !!connection.appSecret,
+                    tokenLength: connection.accessToken.length
+                },
+                currentToken: {
+                    isValid: tokenValidation.success,
+                    needsRefresh: tokenValidation.needsRefresh,
+                    error: tokenValidation.error
+                },
+                tokenInfo: tokenInfo ? {
+                    appId: tokenInfo.data ? .app_id,
+                    userId: tokenInfo.data ? .user_id,
+                    type: tokenInfo.data ? .type,
+                    isValid: tokenInfo.data ? .is_valid,
+                    expiresAt: tokenInfo.data ? .expires_at,
+                    scopes: tokenInfo.data ? .scopes
+                } : null,
+                appTokenConversion: appTokenResult ? {
+                    success: appTokenResult.success,
+                    error: appTokenResult.error,
+                    tokenType: appTokenResult.data ? .tokenType
+                } : null,
+                recommendations: [
+                    tokenValidation.success ?
+                    "✅ Your current token is valid" :
+                    "❌ Your current token is invalid",
+                    tokenInfo ? .data ? .type === 'USER' ?
+                    "⚠️ You're using a USER access token (can expire quickly)" :
+                    "✅ You're using an APP access token (more stable)", !connection.appSecret ?
+                    "❌ No app secret found - token refresh may not work" :
+                    "✅ App secret available for token refresh",
+                    appTokenResult ? .success ?
+                    "✅ Can convert to app access token" :
+                    "❌ Cannot convert to app access token"
+                ]
+            }
+        });
+
+    } catch (error) {
+        console.error('Error diagnosing Meta token:', error);
+        return res.status(500).json({
+            success: false,
+            error: {
+                message: 'Failed to diagnose token',
+                details: error.message
+            }
+        });
     }
 }
 
