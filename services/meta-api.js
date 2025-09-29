@@ -518,6 +518,59 @@ class MetaAPIService {
     }
 
     /**
+     * Get a valid ad account ID, fallback to first available if stored one doesn't work
+     */
+    async getValidAdAccount(storedAccountId) {
+        try {
+            // First try the stored account ID
+            const testResponse = await fetch(`${META_BASE_URL}/${storedAccountId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (testResponse.ok) {
+                console.log('Stored account ID is valid:', storedAccountId);
+                return storedAccountId;
+            }
+
+            console.log('Stored account ID failed, fetching available accounts...');
+
+            // If stored account doesn't work, get available ad accounts
+            const accountsResponse = await fetch(`${META_BASE_URL}/me/adaccounts`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!accountsResponse.ok) {
+                throw new Error('Failed to fetch ad accounts');
+            }
+
+            const accountsData = await accountsResponse.json();
+            const accounts = accountsData.data || [];
+
+            if (accounts.length === 0) {
+                throw new Error('No ad accounts found');
+            }
+
+            // Use the first available account
+            const validAccountId = accounts[0].id;
+            console.log('Using first available account:', validAccountId);
+            return validAccountId;
+
+        } catch (error) {
+            console.error('Error getting valid ad account:', error);
+            // Fallback to stored account ID if all else fails
+            return storedAccountId;
+        }
+    }
+
+    /**
      * Get ad performance data
      */
     async getAdPerformance(adId) {

@@ -1178,7 +1178,8 @@ async function publishToMeta(creative, connection, campaignSettings) {
         // If token validation fails but we can still proceed, try publishing directly
         if (!tokenValidation.success) {
             console.log('Token validation failed, but attempting to publish anyway...');
-            const directPublishResult = await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
+            const validAccountId = await metaService.getValidAdAccount(connection.accountId);
+            const directPublishResult = await metaService.publishCampaign(validAccountId, creative, campaignSettings);
             if (directPublishResult.success) {
                 console.log('Direct publishing succeeded despite token validation failure');
                 return directPublishResult;
@@ -1257,7 +1258,13 @@ async function publishToMeta(creative, connection, campaignSettings) {
 
         console.log('Token validation passed, proceeding with publishing...');
         console.log('Using token for publishing:', metaService.accessToken.substring(0, 20) + '...');
-        return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
+        console.log('Using account ID for publishing:', connection.accountId);
+
+        // Try to get a valid ad account if the stored one doesn't work
+        const validAccountId = await metaService.getValidAdAccount(connection.accountId);
+        console.log('Valid account ID:', validAccountId);
+
+        return await metaService.publishCampaign(validAccountId, creative, campaignSettings);
     } catch (error) {
         console.error('Meta publishing error:', error); // Debug log
         return {
