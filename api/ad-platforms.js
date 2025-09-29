@@ -827,6 +827,7 @@ async function handlePinterestConnect(req, res) {
 async function handlePublishCreative(req, res, creativeId) {
     try {
         const { platforms, campaignSettings } = req.body;
+        console.log('Publishing creative:', { creativeId, platforms, campaignSettings }); // Debug log
 
         const localPrisma = new PrismaClient();
         const creative = await localPrisma.adCreative.findUnique({
@@ -835,24 +836,29 @@ async function handlePublishCreative(req, res, creativeId) {
         });
 
         if (!creative) {
+            console.log('Creative not found:', creativeId); // Debug log
             return res.status(404).json({
                 success: false,
                 error: { message: 'Creative not found' }
             });
         }
 
+        console.log('Creative found:', { id: creative.id, title: creative.title }); // Debug log
         const publishResults = {};
         const errors = [];
 
         // Publish to each requested platform
         for (const platform of platforms) {
             try {
+                console.log(`Processing platform: ${platform}`); // Debug log
                 // Get platform connection
                 const connection = await localPrisma.adPlatformConnection.findFirst({
                     where: { platform: platform, isActive: true }
                 });
 
+                console.log(`Connection for ${platform}:`, connection ? 'Found' : 'Not found'); // Debug log
                 if (!connection) {
+                    console.log(`No active ${platform} connection found`); // Debug log
                     errors.push({ platform, error: `No active ${platform} connection found` });
                     continue;
                 }
