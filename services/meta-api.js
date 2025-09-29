@@ -7,9 +7,10 @@ const META_API_VERSION = 'v18.0';
 const META_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 
 class MetaAPIService {
-    constructor(accessToken, appSecret = null) {
+    constructor(accessToken, appSecret = null, appId = null) {
         this.accessToken = accessToken;
         this.appSecret = appSecret;
+        this.appId = appId;
     }
 
     /**
@@ -54,6 +55,15 @@ class MetaAPIService {
             };
         }
 
+        // Use the stored app ID from the connection instead of environment variable
+        const appId = this.appId || process.env.META_APP_ID;
+        if (!appId) {
+            return {
+                success: false,
+                error: 'App ID not found in connection or environment'
+            };
+        }
+
         try {
             const response = await fetch(`${META_BASE_URL}/oauth/access_token`, {
                 method: 'POST',
@@ -62,13 +72,14 @@ class MetaAPIService {
                 },
                 body: new URLSearchParams({
                     grant_type: 'client_credentials',
-                    client_id: process.env.META_APP_ID,
+                    client_id: appId,
                     client_secret: this.appSecret
                 })
             });
 
             if (!response.ok) {
                 const error = await response.json();
+                console.error('Meta token refresh failed:', error);
                 return {
                     success: false,
                     error: (error.error && error.error.message) || 'Failed to refresh token'
@@ -86,6 +97,7 @@ class MetaAPIService {
                 }
             };
         } catch (error) {
+            console.error('Meta token refresh error:', error);
             return {
                 success: false,
                 error: error.message
@@ -104,6 +116,15 @@ class MetaAPIService {
             };
         }
 
+        // Use the stored app ID from the connection instead of environment variable
+        const appId = this.appId || process.env.META_APP_ID;
+        if (!appId) {
+            return {
+                success: false,
+                error: 'App ID not found in connection or environment'
+            };
+        }
+
         try {
             // Get app access token directly (most stable option)
             const appTokenResponse = await fetch(`${META_BASE_URL}/oauth/access_token`, {
@@ -113,13 +134,14 @@ class MetaAPIService {
                 },
                 body: new URLSearchParams({
                     grant_type: 'client_credentials',
-                    client_id: process.env.META_APP_ID,
+                    client_id: appId,
                     client_secret: this.appSecret
                 })
             });
 
             if (!appTokenResponse.ok) {
                 const error = await appTokenResponse.json();
+                console.error('Meta app token conversion failed:', error);
                 return {
                     success: false,
                     error: (error.error && error.error.message) || 'Failed to get app access token'
@@ -138,6 +160,7 @@ class MetaAPIService {
                 }
             };
         } catch (error) {
+            console.error('Meta app token conversion error:', error);
             return {
                 success: false,
                 error: error.message

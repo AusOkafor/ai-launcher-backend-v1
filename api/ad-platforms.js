@@ -131,6 +131,10 @@ export default async function handler(req, res) {
             return handleMetaTokenDiagnosis(req, res);
         }
 
+        if (pathSegments[0] === 'refresh-meta-token') {
+            return handleRefreshMetaToken(req, res);
+        }
+
         if (pathSegments[0] === 'real-performance') {
             return handleRealPerformanceData(req, res, pathSegments);
         }
@@ -1161,7 +1165,11 @@ async function publishToMeta(creative, connection, campaignSettings) {
             accessTokenLength: connection.accessToken ? connection.accessToken.length : 0
         }); // Debug log
 
-        const metaService = new MetaAPIService(connection.accessToken, connection.appSecret);
+        const metaService = new MetaAPIService(
+            connection.accessToken,
+            connection.appSecret,
+            (connection.accountInfo && connection.accountInfo.appId)
+        );
 
         // Validate token and attempt refresh if needed
         const tokenValidation = await metaService.validateAndRefreshToken();
@@ -1236,7 +1244,11 @@ async function publishToMeta(creative, connection, campaignSettings) {
 
 async function fetchMetaPerformance(connection, adId) {
     try {
-        const metaService = new MetaAPIService(connection.accessToken);
+        const metaService = new MetaAPIService(
+            connection.accessToken,
+            connection.appSecret,
+            (connection.accountInfo && connection.accountInfo.appId)
+        );
         return await metaService.getAdPerformance(adId);
     } catch (error) {
         return {
@@ -1774,7 +1786,11 @@ async function handleMetaTokenRefresh(req, res) {
         console.log('Found Meta connection:', connection.id);
 
         // Test token validation and refresh
-        const metaService = new MetaAPIService(connection.accessToken, connection.appSecret);
+        const metaService = new MetaAPIService(
+            connection.accessToken,
+            connection.appSecret,
+            (connection.accountInfo && connection.accountInfo.appId)
+        );
         const tokenValidation = await metaService.validateAndRefreshToken();
 
         if (tokenValidation.success) {
@@ -1869,7 +1885,11 @@ async function handleMetaTokenDiagnosis(req, res) {
         console.log('Found Meta connection:', connection.id);
 
         // Test current token
-        const metaService = new MetaAPIService(connection.accessToken, connection.appSecret);
+        const metaService = new MetaAPIService(
+            connection.accessToken,
+            connection.appSecret,
+            (connection.accountInfo && connection.accountInfo.appId)
+        );
         const tokenValidation = await metaService.validateAndRefreshToken();
 
         // Get token info from Meta
@@ -1943,6 +1963,93 @@ async function handleMetaTokenDiagnosis(req, res) {
             success: false,
             error: {
                 message: 'Failed to diagnose token',
+                details: error.message
+            }
+        });
+    }
+}
+
+// Force refresh Meta token with new credentials
+async function handleRefreshMetaToken(req, res) {
+    try {
+        console.log('Force refreshing Meta token...');
+
+        // Get the Meta connection from database
+        const localPrisma = new PrismaClient();
+
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: {
+                platform: 'meta',
+                isActive: true
+            }
+        });
+
+        if (!connection) {
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Found Meta connection:', connection.id);
+
+        // Check if we have environment variables
+        if (!process.env.META_APP_ID || !process.env.META_APP_SECRET) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    message: 'Meta app credentials not configured',
+                    details: 'META_APP_ID and META_APP_SECRET environment variables are required'
+                }
+            });
+        }
+
+        // Try to get a new app access token
+        const metaService = new MetaAPIService(
+            connection.accessToken,
+            connection.appSecret || process.env.META_APP_SECRET,
+            (connection.accountInfo && connection.accountInfo.appId) || process.env.META_APP_ID
+        );
+        const refreshResult = await metaService.convertToAppToken();
+
+        if (refreshResult.success) {
+            // Update the connection with new token
+            await localPrisma.adPlatformConnection.update({
+                where: { id: connection.id },
+                data: {
+                    accessToken: refreshResult.data.accessToken,
+                    appSecret: process.env.META_APP_SECRET,
+                    lastConnected: new Date()
+                }
+            });
+
+            await localPrisma.$disconnect();
+
+            return res.json({
+                success: true,
+                data: {
+                    message: 'Meta token refreshed successfully',
+                    tokenType: refreshResult.data.tokenType,
+                    newToken: refreshResult.data.accessToken.substring(0, 20) + '...'
+                }
+            });
+        } else {
+            await localPrisma.$disconnect();
+            return res.status(400).json({
+                success: false,
+                error: {
+                    message: 'Token refresh failed',
+                    details: refreshResult.error
+                }
+            });
+        }
+
+    } catch (error) {
+        console.error('Error refreshing Meta token:', error);
+        return res.status(500).json({
+            success: false,
+            error: {
+                message: 'Failed to refresh token',
                 details: error.message
             }
         });
