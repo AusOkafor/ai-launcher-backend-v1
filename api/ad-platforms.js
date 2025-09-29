@@ -1195,8 +1195,15 @@ async function publishToMeta(creative, connection, campaignSettings) {
                     });
                     await localPrisma.$disconnect();
 
+                    // Create new MetaAPIService with updated token
+                    const updatedMetaService = new MetaAPIService(
+                        convertResult.data.accessToken,
+                        connection.appSecret,
+                        (connection.accountInfo && connection.accountInfo.appId)
+                    );
+
                     // Retry publishing with new token
-                    return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
+                    return await updatedMetaService.publishCampaign(connection.accountId, creative, campaignSettings);
                 } else {
                     console.log('App token conversion failed, trying regular refresh...');
                     const refreshResult = await metaService.refreshToken();
@@ -1214,8 +1221,15 @@ async function publishToMeta(creative, connection, campaignSettings) {
                         });
                         await localPrisma.$disconnect();
 
+                        // Create new MetaAPIService with updated token
+                        const updatedMetaService = new MetaAPIService(
+                            refreshResult.data.accessToken,
+                            connection.appSecret,
+                            (connection.accountInfo && connection.accountInfo.appId)
+                        );
+
                         // Retry publishing with new token
-                        return await metaService.publishCampaign(connection.accountId, creative, campaignSettings);
+                        return await updatedMetaService.publishCampaign(connection.accountId, creative, campaignSettings);
                     } else {
                         console.error('Both app token conversion and refresh failed:', convertResult.error, refreshResult.error);
                         return {
@@ -2018,7 +2032,6 @@ async function handleRefreshMetaToken(req, res) {
                 where: { id: connection.id },
                 data: {
                     accessToken: refreshResult.data.accessToken,
-                    appSecret: process.env.META_APP_SECRET,
                     lastConnected: new Date()
                 }
             });
