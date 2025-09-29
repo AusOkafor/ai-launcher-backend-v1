@@ -49,6 +49,9 @@ export default async function handler(req, res) {
     // Ensure headers are sent immediately
     res.setHeader('Cache-Control', 'no-cache');
 
+    // Force CORS headers to be sent
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-JSON');
+
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
         console.log('CORS preflight request handled for origin:', origin);
@@ -1906,28 +1909,28 @@ async function handleMetaTokenDiagnosis(req, res) {
                     error: tokenValidation.error
                 },
                 tokenInfo: tokenInfo ? {
-                    appId: tokenInfo.data ? .app_id,
-                    userId: tokenInfo.data ? .user_id,
-                    type: tokenInfo.data ? .type,
-                    isValid: tokenInfo.data ? .is_valid,
-                    expiresAt: tokenInfo.data ? .expires_at,
-                    scopes: tokenInfo.data ? .scopes
+                    appId: (tokenInfo.data && tokenInfo.data.app_id),
+                    userId: (tokenInfo.data && tokenInfo.data.user_id),
+                    type: (tokenInfo.data && tokenInfo.data.type),
+                    isValid: (tokenInfo.data && tokenInfo.data.is_valid),
+                    expiresAt: (tokenInfo.data && tokenInfo.data.expires_at),
+                    scopes: (tokenInfo.data && tokenInfo.data.scopes)
                 } : null,
                 appTokenConversion: appTokenResult ? {
                     success: appTokenResult.success,
                     error: appTokenResult.error,
-                    tokenType: appTokenResult.data ? .tokenType
+                    tokenType: (appTokenResult.data && appTokenResult.data.tokenType)
                 } : null,
                 recommendations: [
                     tokenValidation.success ?
                     "✅ Your current token is valid" :
                     "❌ Your current token is invalid",
-                    tokenInfo ? .data ? .type === 'USER' ?
+                    (tokenInfo && tokenInfo.data && tokenInfo.data.type) === 'USER' ?
                     "⚠️ You're using a USER access token (can expire quickly)" :
                     "✅ You're using an APP access token (more stable)", !connection.appSecret ?
                     "❌ No app secret found - token refresh may not work" :
                     "✅ App secret available for token refresh",
-                    appTokenResult ? .success ?
+                    (appTokenResult && appTokenResult.success) ?
                     "✅ Can convert to app access token" :
                     "❌ Cannot convert to app access token"
                 ]
