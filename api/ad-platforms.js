@@ -2032,9 +2032,10 @@ async function handleRefreshMetaToken(req, res) {
         if (refreshResult.success) {
             console.log('Refresh result:', refreshResult);
             console.log('New token length:', refreshResult.data.accessToken ? refreshResult.data.accessToken.length : 'undefined');
+            console.log('New token preview:', refreshResult.data.accessToken ? refreshResult.data.accessToken.substring(0, 50) + '...' : 'undefined');
 
             // Update the connection with new token
-            await localPrisma.adPlatformConnection.update({
+            const updateResult = await localPrisma.adPlatformConnection.update({
                 where: { id: connection.id },
                 data: {
                     accessToken: refreshResult.data.accessToken,
@@ -2043,6 +2044,7 @@ async function handleRefreshMetaToken(req, res) {
             });
 
             console.log('Database updated with new token');
+            console.log('Updated token length in DB:', updateResult.accessToken ? updateResult.accessToken.length : 'undefined');
 
             await localPrisma.$disconnect();
 
