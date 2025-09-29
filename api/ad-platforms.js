@@ -33,7 +33,7 @@ export default async function handler(req, res) {
         'https://ai-launcher-frontend.vercel.app'
     ];
 
-    // Set CORS headers for all responses
+    // Set CORS headers for all responses - MUST be set before any response
     if (allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
@@ -46,6 +46,9 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
     res.setHeader('Vary', 'Origin');
 
+    // Ensure headers are sent immediately
+    res.setHeader('Cache-Control', 'no-cache');
+
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
         console.log('CORS preflight request handled for origin:', origin);
@@ -55,6 +58,18 @@ export default async function handler(req, res) {
 
     // Log all requests for debugging
     console.log(`API request: ${req.method} ${req.url} from origin: ${origin}`);
+
+    // Simple test endpoint for CORS debugging
+    if (req.url === '/api/ad-platforms' && !req.query.path) {
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: 'CORS test successful',
+                origin: origin,
+                timestamp: new Date().toISOString()
+            }
+        });
+    }
 
     try {
         const { path } = req.query;

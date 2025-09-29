@@ -37,7 +37,7 @@ class MetaAPIService {
                 return { success: false, needsRefresh: true, error: 'Token expired' };
             }
 
-            return { success: false, needsRefresh: false, error: error.error ? .message || 'Token validation failed' };
+            return { success: false, needsRefresh: false, error: (error.error && error.error.message) || 'Token validation failed' };
         } catch (error) {
             return { success: false, needsRefresh: false, error: error.message };
         }
@@ -71,7 +71,7 @@ class MetaAPIService {
                 const error = await response.json();
                 return {
                     success: false,
-                    error: error.error ? .message || 'Failed to refresh token'
+                    error: (error.error && error.error.message) || 'Failed to refresh token'
                 };
             }
 
@@ -122,7 +122,7 @@ class MetaAPIService {
                 const error = await appTokenResponse.json();
                 return {
                     success: false,
-                    error: error.error ? .message || 'Failed to get app access token'
+                    error: (error.error && error.error.message) || 'Failed to get app access token'
                 };
             }
 
