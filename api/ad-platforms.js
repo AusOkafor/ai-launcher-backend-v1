@@ -389,7 +389,7 @@ async function handleMetaConnect(req, res) {
                 where: {
                     platform_accountId: {
                         platform: 'meta',
-                        accountId: appId
+                        accountId: sandboxAdAccountId // Use the actual ad account ID, not app ID
                     }
                 },
                 update: {
@@ -397,6 +397,7 @@ async function handleMetaConnect(req, res) {
                     appSecret: appSecret,
                     accountInfo: {
                         ...accountInfo.data,
+                        appId: appId, // Store app ID in accountInfo instead
                         sandboxAdAccountId: sandboxAdAccountId,
                         sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
                         sandboxAvailable: sandboxInfo.success
@@ -406,11 +407,12 @@ async function handleMetaConnect(req, res) {
                 },
                 create: {
                     platform: 'meta',
-                    accountId: appId,
+                    accountId: sandboxAdAccountId, // Use the actual ad account ID, not app ID
                     accessToken: accessToken,
                     appSecret: appSecret,
                     accountInfo: {
                         ...accountInfo.data,
+                        appId: appId, // Store app ID in accountInfo instead
                         sandboxAdAccountId: sandboxAdAccountId,
                         sandboxInfo: sandboxInfo.success ? sandboxInfo.data : null,
                         sandboxAvailable: sandboxInfo.success

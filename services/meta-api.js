@@ -59,10 +59,16 @@ class MetaAPIService {
      */
     async createCampaign(adAccountId, campaignData) {
         try {
-            // Ensure account ID has act_ prefix but don't double it
-            const formattedAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+            // Handle account ID formatting - remove act_ if present, then add it back
+            let cleanAccountId = adAccountId;
+            if (adAccountId.startsWith('act_')) {
+                cleanAccountId = adAccountId.substring(4); // Remove 'act_' prefix
+            }
+            const formattedAccountId = `act_${cleanAccountId}`;
+
             console.log('Meta API - createCampaign details:', {
                 originalAccountId: adAccountId,
+                cleanAccountId: cleanAccountId,
                 formattedAccountId: formattedAccountId,
                 url: `${META_BASE_URL}/${formattedAccountId}/campaigns`,
                 tokenLength: this.accessToken ? this.accessToken.length : 0
@@ -162,8 +168,13 @@ class MetaAPIService {
      */
     async createAdCreative(adAccountId, creativeData) {
         try {
-            // Ensure account ID has act_ prefix but don't double it
-            const formattedAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+            // Handle account ID formatting - remove act_ if present, then add it back
+            let cleanAccountId = adAccountId;
+            if (adAccountId.startsWith('act_')) {
+                cleanAccountId = adAccountId.substring(4); // Remove 'act_' prefix
+            }
+            const formattedAccountId = `act_${cleanAccountId}`;
+
             const response = await fetch(`${META_BASE_URL}/${formattedAccountId}/adcreatives`, {
                 method: 'POST',
                 headers: {
