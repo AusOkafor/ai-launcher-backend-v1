@@ -484,21 +484,36 @@ class MetaAPIService {
             // 3. Create ad creative
             console.log('Using page ID for ad creative:', campaignSettings.pageId); // Debug log
 
-            const creativeResult = await this.createAdCreative(adAccountId, {
+            // Extract creative content from outputs JSON
+            const outputs = creative.outputs || {};
+            console.log('Creative outputs:', outputs);
+
+            // Build creative spec with images if available
+            const creativeSpec = {
                 name: `${creative.launch.product.title} - Creative`,
                 object_story_spec: {
                     page_id: campaignSettings.pageId,
                     link_data: {
-                        message: creative.outputs.description,
+                        message: outputs.description || outputs.message || creative.launch.product.description || 'Check out this amazing product!',
                         link: creative.launch.product.url || 'https://example.com',
-                        name: creative.outputs.headline,
-                        description: creative.outputs.description,
+                        name: outputs.headline || outputs.title || creative.launch.product.title,
+                        description: outputs.description || outputs.message || creative.launch.product.description || 'Amazing product you need to see!',
                         call_to_action: {
-                            type: creative.outputs.cta || 'LEARN_MORE'
+                            type: outputs.cta || outputs.call_to_action || 'LEARN_MORE'
                         }
                     }
                 }
-            });
+            };
+
+            // Add image if available
+            if (outputs.image || outputs.image_url || (creative.launch.product.images && creative.launch.product.images.length > 0)) {
+                const imageUrl = outputs.image || outputs.image_url || creative.launch.product.images[0];
+                console.log('Using image for creative:', imageUrl);
+                creativeSpec.object_story_spec.link_data.picture = imageUrl;
+            }
+
+            console.log('Creating ad creative with spec:', JSON.stringify(creativeSpec, null, 2));
+            const creativeResult = await this.createAdCreative(adAccountId, creativeSpec);
 
             if (!creativeResult.success) {
                 return creativeResult;
