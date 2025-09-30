@@ -290,7 +290,17 @@ class MetaAPIService {
      */
     async createAdSet(campaignId, adSetData) {
         try {
-            const response = await fetch(`${META_BASE_URL}/${campaignId}/adsets`, {
+            // Extract adAccountId from adSetData or derive from campaignId
+            const adAccountId = adSetData.adAccountId;
+            if (!adAccountId) {
+                throw new Error('adAccountId is required in adSetData');
+            }
+
+            const formattedAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+
+            console.log('Creating ad set with account ID:', formattedAccountId, 'for campaign:', campaignId);
+
+            const response = await fetch(`${META_BASE_URL}/${formattedAccountId}/adsets`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.accessToken}`,
@@ -299,12 +309,11 @@ class MetaAPIService {
                 body: JSON.stringify({
                     name: adSetData.name,
                     campaign_id: campaignId,
-                    daily_budget: adSetData.dailyBudget,
+                    daily_budget: (adSetData.dailyBudget * 100).toString(), // Convert to cents
                     billing_event: adSetData.billingEvent || 'IMPRESSIONS',
-                    optimization_goal: adSetData.optimizationGoal || 'CONVERSIONS',
+                    optimization_goal: adSetData.optimizationGoal || 'LINK_CLICKS',
                     targeting: adSetData.targeting,
-                    status: adSetData.status || 'PAUSED',
-                    ...adSetData
+                    status: adSetData.status || 'PAUSED'
                 })
             });
 
@@ -381,7 +390,17 @@ class MetaAPIService {
      */
     async createAd(adSetId, adData) {
         try {
-            const response = await fetch(`${META_BASE_URL}/${adSetId}/ads`, {
+            // Extract adAccountId from adData
+            const adAccountId = adData.adAccountId;
+            if (!adAccountId) {
+                throw new Error('adAccountId is required in adData');
+            }
+
+            const formattedAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+
+            console.log('Creating ad with account ID:', formattedAccountId, 'for ad set:', adSetId);
+
+            const response = await fetch(`${META_BASE_URL}/${formattedAccountId}/ads`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.accessToken}`,
@@ -391,8 +410,7 @@ class MetaAPIService {
                     name: adData.name,
                     adset_id: adSetId,
                     creative: adData.creative,
-                    status: adData.status || 'PAUSED',
-                    ...adData
+                    status: adData.status || 'PAUSED'
                 })
             });
 
@@ -456,6 +474,7 @@ class MetaAPIService {
             // 2. Create ad set
             console.log('Creating ad set for campaign:', campaignResult.data.campaignId);
             const adSetResult = await this.createAdSet(campaignResult.data.campaignId, {
+                adAccountId: adAccountId, // Pass account ID for proper endpoint
                 name: `${creative.launch.product.title} - Ad Set`,
                 dailyBudget: campaignSettings.dailyBudget || 50,
                 targeting: {
@@ -512,6 +531,7 @@ class MetaAPIService {
 
             // 4. Create ad
             const adResult = await this.createAd(adSetResult.data.adSetId, {
+                adAccountId: adAccountId, // Pass account ID for proper endpoint
                 name: `${creative.launch.product.title} - Ad`,
                 creative: {
                     creative_id: creativeResult.data.creativeId
