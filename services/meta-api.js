@@ -602,7 +602,10 @@ class MetaAPIService {
                 account.account_status === 1 || account.account_status === 'ACTIVE'
             );
 
-            const validAccountId = activeAccount ? activeAccount.id : accounts[0].id;
+            const accountId = activeAccount ? activeAccount.id : accounts[0].id;
+
+            // Ensure the account ID has the 'act_' prefix
+            const validAccountId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
             console.log('Using account:', validAccountId, 'from', accounts.length, 'available accounts');
 
             return validAccountId;
