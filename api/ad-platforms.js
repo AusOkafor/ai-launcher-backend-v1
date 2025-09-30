@@ -1590,7 +1590,7 @@ async function publishToMeta(creative, connection, campaignSettings) {
                 console.log('Token conversion failed or returned invalid token, proceeding with current token...');
             }
         } else {
-            console.log('Current token appears valid, proceeding with publishing...');
+            console.log('Current token appears valid (length:', connection.accessToken.length, '), proceeding with publishing...');
         }
 
         const validAccountId = await metaService.getValidAdAccount(connection.accountId);
