@@ -139,6 +139,10 @@ export default async function handler(req, res) {
             return handleUpdateMetaToken(req, res);
         }
 
+        if (pathSegments[0] === 'test-meta-accounts') {
+            return handleTestMetaAccounts(req, res);
+        }
+
         if (pathSegments[0] === 'real-performance') {
             return handleRealPerformanceData(req, res, pathSegments);
         }
@@ -1026,6 +1030,90 @@ async function handleUpdateMetaToken(req, res) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to update Meta token' }
+        });
+    }
+}
+
+// Test Meta Accounts Handler
+async function handleTestMetaAccounts(req, res) {
+    try {
+        const localPrisma = new PrismaClient();
+
+        // Find the Meta connection
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: { platform: 'meta', isActive: true }
+        });
+
+        if (!connection) {
+            await localPrisma.$disconnect();
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Testing Meta accounts for connection:', connection.id);
+        console.log('Current stored account ID:', connection.accountId);
+
+        const metaService = new MetaAPIService(
+            connection.accessToken,
+            connection.appSecret,
+            (connection.accountInfo && connection.accountInfo.appId)
+        );
+
+        // Test the stored account ID
+        console.log('Testing stored account ID:', connection.accountId);
+        const testResponse = await fetch(`https://graph.facebook.com/v18.0/${connection.accountId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${connection.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const testResult = {
+            storedAccountId: connection.accountId,
+            testResponse: {
+                status: testResponse.status,
+                ok: testResponse.ok
+            }
+        };
+
+        if (!testResponse.ok) {
+            const errorData = await testResponse.json();
+            testResult.testResponse.error = errorData;
+        }
+
+        // Get available accounts
+        console.log('Fetching available ad accounts...');
+        const accountsResponse = await fetch(`https://graph.facebook.com/v18.0/me/adaccounts?fields=id,name,account_status`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${connection.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (accountsResponse.ok) {
+            const accountsData = await accountsResponse.json();
+            testResult.availableAccounts = accountsData.data || [];
+        } else {
+            const errorData = await accountsResponse.json();
+            testResult.accountsError = errorData;
+        }
+
+        await localPrisma.$disconnect();
+
+        return res.json({
+            success: true,
+            data: testResult
+        });
+
+    } catch (error) {
+        console.error('Error testing Meta accounts:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to test Meta accounts' }
         });
     }
 }
