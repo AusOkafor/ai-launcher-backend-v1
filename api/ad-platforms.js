@@ -147,6 +147,10 @@ export default async function handler(req, res) {
             return handleFixMetaAccountId(req, res);
         }
 
+        if (pathSegments[0] === 'test-token-conversion') {
+            return handleTestTokenConversion(req, res);
+        }
+
         if (pathSegments[0] === 'real-performance') {
             return handleRealPerformanceData(req, res, pathSegments);
         }
@@ -1199,6 +1203,58 @@ async function handleFixMetaAccountId(req, res) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to fix Meta account ID' }
+        });
+    }
+}
+
+// Test Token Conversion Handler
+async function handleTestTokenConversion(req, res) {
+    try {
+        const localPrisma = new PrismaClient();
+
+        // Find the Meta connection
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: { platform: 'meta', isActive: true }
+        });
+
+        if (!connection) {
+            await localPrisma.$disconnect();
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Testing token conversion for connection:', connection.id);
+
+        const metaService = new MetaAPIService(
+            connection.accessToken,
+            connection.appSecret,
+            (connection.accountInfo && connection.accountInfo.appId)
+        );
+
+        // Test the conversion process
+        console.log('Attempting token conversion...');
+        const convertResult = await metaService.convertToAppToken();
+
+        console.log('Conversion result:', convertResult);
+
+        await localPrisma.$disconnect();
+
+        return res.json({
+            success: true,
+            data: {
+                message: 'Token conversion test completed',
+                originalTokenLength: connection.accessToken.length,
+                conversionResult: convertResult
+            }
+        });
+
+    } catch (error) {
+        console.error('Error testing token conversion:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to test token conversion' }
         });
     }
 }
