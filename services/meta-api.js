@@ -449,6 +449,7 @@ class MetaAPIService {
             }); // Debug log
 
             // 1. Create campaign
+            console.log('Creating campaign for account:', adAccountId);
             const campaignResult = await this.createCampaign(adAccountId, {
                 name: `${creative.launch.product.title} - ${creative.platform.toUpperCase()} Campaign`,
                 objective: 'OUTCOME_TRAFFIC', // Updated to use new objective names
@@ -456,10 +457,13 @@ class MetaAPIService {
             });
 
             if (!campaignResult.success) {
+                console.error('Campaign creation failed:', campaignResult);
                 return campaignResult;
             }
+            console.log('Campaign created successfully:', campaignResult.data.campaignId);
 
             // 2. Create ad set
+            console.log('Creating ad set for campaign:', campaignResult.data.campaignId);
             const adSetResult = await this.createAdSet(campaignResult.data.campaignId, {
                 name: `${creative.launch.product.title} - Ad Set`,
                 dailyBudget: campaignSettings.dailyBudget || 50,
@@ -472,8 +476,10 @@ class MetaAPIService {
             });
 
             if (!adSetResult.success) {
+                console.error('Ad set creation failed:', adSetResult);
                 return adSetResult;
             }
+            console.log('Ad set created successfully:', adSetResult.data.adSetId);
 
             // 3. Create ad creative
             console.log('Using page ID for ad creative:', campaignSettings.pageId); // Debug log
