@@ -143,6 +143,10 @@ export default async function handler(req, res) {
             return handleTestMetaAccounts(req, res);
         }
 
+        if (pathSegments[0] === 'fix-meta-account-id') {
+            return handleFixMetaAccountId(req, res);
+        }
+
         if (pathSegments[0] === 'real-performance') {
             return handleRealPerformanceData(req, res, pathSegments);
         }
@@ -1114,6 +1118,87 @@ async function handleTestMetaAccounts(req, res) {
         return res.status(500).json({
             success: false,
             error: { message: 'Failed to test Meta accounts' }
+        });
+    }
+}
+
+// Fix Meta Account ID Handler
+async function handleFixMetaAccountId(req, res) {
+    try {
+        const localPrisma = new PrismaClient();
+
+        // Find the Meta connection
+        const connection = await localPrisma.adPlatformConnection.findFirst({
+            where: { platform: 'meta', isActive: true }
+        });
+
+        if (!connection) {
+            await localPrisma.$disconnect();
+            return res.status(404).json({
+                success: false,
+                error: { message: 'No active Meta connection found' }
+            });
+        }
+
+        console.log('Current stored account ID:', connection.accountId);
+
+        // Get available accounts to find the correct one
+        const accountsResponse = await fetch(`https://graph.facebook.com/v18.0/me/adaccounts?fields=id,name,account_status`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${connection.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!accountsResponse.ok) {
+            await localPrisma.$disconnect();
+            return res.status(400).json({
+                success: false,
+                error: { message: 'Failed to fetch ad accounts' }
+            });
+        }
+
+        const accountsData = await accountsResponse.json();
+        const accounts = accountsData.data || [];
+
+        if (accounts.length === 0) {
+            await localPrisma.$disconnect();
+            return res.status(400).json({
+                success: false,
+                error: { message: 'No ad accounts found' }
+            });
+        }
+
+        // Find the correct account ID (with act_ prefix)
+        const correctAccountId = accounts[0].id; // This should be act_1323519419104478
+        console.log('Correct account ID:', correctAccountId);
+
+        // Update the connection with the correct account ID
+        await localPrisma.adPlatformConnection.update({
+            where: { id: connection.id },
+            data: {
+                accountId: correctAccountId
+            }
+        });
+
+        await localPrisma.$disconnect();
+
+        return res.json({
+            success: true,
+            data: {
+                message: 'Meta account ID fixed successfully',
+                oldAccountId: connection.accountId,
+                newAccountId: correctAccountId,
+                accountName: accounts[0].name
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fixing Meta account ID:', error);
+        return res.status(500).json({
+            success: false,
+            error: { message: 'Failed to fix Meta account ID' }
         });
     }
 }
