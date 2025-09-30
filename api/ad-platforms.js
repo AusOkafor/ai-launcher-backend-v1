@@ -1558,9 +1558,9 @@ async function publishToMeta(creative, connection, campaignSettings) {
         console.log('Using token for publishing:', metaService.accessToken.substring(0, 20) + '...');
         console.log('Using account ID for publishing:', connection.accountId);
 
-        // Check if current token is long enough (USER tokens are usually 200+ chars)
+        // Only attempt conversion if token is clearly invalid (too short)
         if (connection.accessToken.length < 100) {
-            console.log('Current token appears to be invalid/truncated, attempting conversion...');
+            console.log('Current token appears to be invalid/truncated (length:', connection.accessToken.length, '), attempting conversion...');
             const convertResult = await metaService.convertToAppToken();
             if (convertResult.success && convertResult.data.accessToken.length > 100) {
                 console.log('Successfully converted to app access token, updating database...');
@@ -1590,7 +1590,7 @@ async function publishToMeta(creative, connection, campaignSettings) {
                 console.log('Token conversion failed or returned invalid token, proceeding with current token...');
             }
         } else {
-            console.log('Current token appears valid (length:', connection.accessToken.length, '), proceeding with publishing...');
+            console.log('Current token is valid (length:', connection.accessToken.length, '), using it directly for publishing...');
         }
 
         const validAccountId = await metaService.getValidAdAccount(connection.accountId);
